@@ -20,7 +20,7 @@ export default function Projects({ selected, onSelect }: ProjectsProps) {
     .filter((p): p is Project => p !== undefined)
 
   return (
-    <Section title="Projects">
+    <Section title="Projects" hint="클릭시 프로젝트의 상세 내용을 확인하실 수 있습니다.">
       <div>
         {sorted.map((project) => {
           const isSelected = selected?.name === project.name
