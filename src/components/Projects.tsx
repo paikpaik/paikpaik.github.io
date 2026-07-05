@@ -1,17 +1,9 @@
-import Section from './Section'
-import { projects, projectOrder, type Project, type ProjectLabel } from '../data/resume'
+import { projects, projectOrder, type Project } from '../data/resume'
+import { labelStyle } from '../utils/labelStyle'
 
 interface ProjectsProps {
   selected: Project | null
   onSelect: (project: Project) => void
-}
-
-const labelStyle: Record<ProjectLabel, { base: string; selected: string }> = {
-  Dev:        { base: 'bg-blue-50 text-blue-500',       selected: 'bg-blue-500 text-white' },
-  Monitoring: { base: 'bg-indigo-50 text-indigo-600',   selected: 'bg-indigo-500 text-white' },
-  SDK:        { base: 'bg-amber-50 text-amber-600',      selected: 'bg-amber-500 text-white' },
-  WebApp:     { base: 'bg-emerald-50 text-emerald-600',  selected: 'bg-emerald-500 text-white' },
-  LLM:        { base: 'bg-purple-50 text-purple-500',    selected: 'bg-purple-500 text-white' },
 }
 
 export default function Projects({ selected, onSelect }: ProjectsProps) {
@@ -20,42 +12,53 @@ export default function Projects({ selected, onSelect }: ProjectsProps) {
     .filter((p): p is Project => p !== undefined)
 
   return (
-    <Section title="Projects" hint="클릭시 프로젝트의 상세 내용을 확인하실 수 있습니다.">
-      <div>
-        {sorted.map((project) => {
-          const isSelected = selected?.name === project.name
-          const ls = labelStyle[project.label]
-          return (
-            <button
-              key={project.id}
-              onClick={() => onSelect(project)}
-              className={`w-full rounded-lg px-3 py-3.5 text-left transition-colors ${
-                isSelected
-                  ? 'bg-blue-500 text-white'
-                  : 'hover:bg-blue-50 text-neutral-800'
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {sorted.map((project) => {
+        const isSelected = selected?.name === project.name
+        const ls = labelStyle[project.label]
+        return (
+          <button
+            key={project.id}
+            onClick={() => onSelect(project)}
+            className={`rounded-xl border p-4 text-left transition-colors ${
+              isSelected
+                ? 'border-blue-500 bg-blue-500'
+                : 'border-neutral-100 bg-white hover:border-blue-200 hover:bg-blue-50'
+            }`}
+          >
+            <span
+              className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                isSelected ? ls.selected : ls.base
               }`}
             >
-              <div className="flex items-center gap-3">
+              {project.label}
+            </span>
+            <p className={`mt-2.5 text-base font-bold leading-snug ${isSelected ? 'text-white' : 'text-neutral-900'}`}>
+              {project.name}
+            </p>
+            <p className={`mt-1.5 text-sm leading-relaxed ${isSelected ? 'text-blue-50' : 'text-neutral-500'}`}>
+              {project.summary}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {project.stack.slice(0, 3).map((tag) => (
                 <span
-                  className={`w-20 shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-medium ${
-                    isSelected ? ls.selected : ls.base
+                  key={tag}
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                    isSelected ? 'bg-white/15 text-blue-50' : 'bg-neutral-100 text-neutral-500'
                   }`}
                 >
-                  {project.label}
+                  {tag}
                 </span>
-                <span className="font-semibold">{project.name}</span>
-              </div>
-              <div className="flex justify-end mt-1">
-                <span
-                  className={`text-sm ${isSelected ? 'text-blue-100' : 'text-neutral-400'}`}
-                >
-                  {project.summary}
+              ))}
+              {project.stack.length > 3 && (
+                <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${isSelected ? 'text-blue-100' : 'text-neutral-400'}`}>
+                  +{project.stack.length - 3}
                 </span>
-              </div>
-            </button>
-          )
-        })}
-      </div>
-    </Section>
+              )}
+            </div>
+          </button>
+        )
+      })}
+    </div>
   )
 }
