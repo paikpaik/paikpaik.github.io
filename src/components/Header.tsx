@@ -3,7 +3,7 @@ import { profile } from '../data/resume'
 export default function Header() {
   return (
     <header className="border-b border-neutral-200 bg-white">
-      <div className="mx-auto max-w-3xl px-6 py-12">
+      <div className="mx-auto max-w-5xl px-6 py-12">
         <div className="flex items-end justify-between gap-6">
           <div className="flex items-end gap-6">
             <img
