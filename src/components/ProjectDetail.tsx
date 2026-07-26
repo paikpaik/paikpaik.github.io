@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { Project, Issue } from '../data/resume'
+import type { Project, Issue, ProjectArchitecture } from '../data/resume'
 import { formatPeriod } from '../utils/date'
 import MermaidDiagram from './MermaidDiagram'
 import ArchitectureModal from './ArchitectureModal'
@@ -73,25 +73,57 @@ function IssueItem({ issue, open, onToggle }: { issue: Issue; open: boolean; onT
 }
 
 export default function ProjectDetail({ project, onClose }: ProjectDetailProps) {
-  const [openIndexes, setOpenIndexes] = useState<Set<number>>(() => new Set(project.issues?.length ? [0] : []))
+  const diagrams = useMemo<ProjectArchitecture[]>(() => {
+    if (project.architectures && project.architectures.length > 0) return project.architectures
+    if (project.architecture) return [{ key: '_default', label: '아키텍처', diagram: project.architecture }]
+    return []
+  }, [project.architectures, project.architecture])
+
+  const [activeArchKey, setActiveArchKey] = useState<string | undefined>(diagrams[0]?.key)
+  const [openTitles, setOpenTitles] = useState<Set<string>>(() => {
+    const first = project.issues?.[0]
+    return new Set(first ? [first.title] : [])
+  })
+  const [componentFilter, setComponentFilter] = useState<string>('all')
   const [expanded, setExpanded] = useState(false)
 
-  const toggleIssue = (i: number) => {
-    setOpenIndexes((prev) => {
+  const activeDiagram = diagrams.find((d) => d.key === activeArchKey) ?? diagrams[0]
+
+  const toggleIssue = (issue: Issue) => {
+    const willOpen = !openTitles.has(issue.title)
+    setOpenTitles((prev) => {
       const next = new Set(prev)
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
+      if (next.has(issue.title)) next.delete(issue.title)
+      else next.add(issue.title)
       return next
     })
+    // 다이어그램이 여러 개면, 펼치는(닫는 게 아니라) 이슈가 속한 컴포넌트로 탭을 자동 전환
+    if (willOpen && diagrams.length > 1 && issue.component && diagrams.some((d) => d.key === issue.component)) {
+      setActiveArchKey(issue.component)
+    }
   }
 
   const highlightNodeIds = useMemo(
     () =>
       (project.issues ?? [])
-        .filter((_, i) => openIndexes.has(i))
+        .filter((issue) => openTitles.has(issue.title))
+        .filter((issue) => diagrams.length <= 1 || !issue.component || issue.component === activeArchKey)
         .flatMap((issue) => issue.relatedNodes ?? []),
-    [project.issues, openIndexes],
+    [project.issues, openTitles, diagrams.length, activeArchKey],
   )
+
+  const components = useMemo(() => {
+    const set = new Set<string>()
+    for (const issue of project.issues ?? []) {
+      if (issue.component) set.add(issue.component)
+    }
+    return Array.from(set)
+  }, [project.issues])
+
+  const filteredIssues = useMemo(() => {
+    if (componentFilter === 'all') return project.issues ?? []
+    return (project.issues ?? []).filter((issue) => issue.component === componentFilter)
+  }, [project.issues, componentFilter])
 
   return (
     <div className="flex h-full flex-col">
@@ -116,16 +148,35 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
       <div className="flex-1 overflow-y-auto px-8 py-8">
         <p className="text-base text-neutral-600">{project.summary}</p>
 
-        {project.architecture && (
+        {diagrams.length > 0 && (
           <div className="mt-8">
             <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">아키텍처</h3>
-            <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2">
-              <MermaidDiagram
-                chart={project.architecture}
-                highlightNodeIds={highlightNodeIds}
-                onExpand={() => setExpanded(true)}
-              />
-            </div>
+            {diagrams.length > 1 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {diagrams.map((d) => (
+                  <button
+                    key={d.key}
+                    onClick={() => setActiveArchKey(d.key)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      activeArchKey === d.key
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-blue-50 text-blue-500 hover:bg-blue-100'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {activeDiagram && (
+              <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2">
+                <MermaidDiagram
+                  chart={activeDiagram.diagram}
+                  highlightNodeIds={highlightNodeIds}
+                  onExpand={() => setExpanded(true)}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -144,13 +195,43 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
         {project.issues && project.issues.length > 0 && (
           <div className="mt-8">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-blue-500">이슈</h3>
+            {components.length > 1 && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setComponentFilter('all')}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                    componentFilter === 'all'
+                      ? 'bg-neutral-800 text-white'
+                      : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200'
+                  }`}
+                >
+                  전체
+                </button>
+                {components.map((c) => {
+                  const label = diagrams.find((d) => d.key === c)?.label ?? c
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => setComponentFilter(c)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        componentFilter === c
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-blue-50 text-blue-500 hover:bg-blue-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             <ul className="space-y-0.5">
-              {project.issues.map((issue, i) => (
+              {filteredIssues.map((issue) => (
                 <IssueItem
-                  key={`${project.id}-${i}`}
+                  key={`${project.id}-${issue.title}`}
                   issue={issue}
-                  open={openIndexes.has(i)}
-                  onToggle={() => toggleIssue(i)}
+                  open={openTitles.has(issue.title)}
+                  onToggle={() => toggleIssue(issue)}
                 />
               ))}
             </ul>
@@ -183,9 +264,9 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
         </div>
       </div>
 
-      {expanded && project.architecture && (
+      {expanded && activeDiagram && (
         <ArchitectureModal
-          chart={project.architecture}
+          chart={activeDiagram.diagram}
           highlightNodeIds={highlightNodeIds}
           onClose={() => setExpanded(false)}
         />
