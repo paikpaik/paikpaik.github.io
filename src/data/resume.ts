@@ -71,6 +71,14 @@ export type Issue = {
   relatedNodes?: string[]
   // 이 이슈 하나의 정량적 결과/임팩트
   impact?: string
+  // 여러 서브프로젝트를 묶은 프로젝트에서, 이 이슈가 속한 컴포넌트 (architectures[].key와 매칭)
+  component?: string
+}
+
+export type ProjectArchitecture = {
+  key: string
+  label: string
+  diagram: string
 }
 
 export type Project = {
@@ -82,13 +90,16 @@ export type Project = {
   end?: string
   description: string[]
   stack: string[]
+  // 단일 다이어그램 프로젝트용 (기존 방식, 대부분의 프로젝트는 이것만 사용)
   architecture?: string
+  // 여러 서브프로젝트/서비스를 하나의 카드로 묶을 때, 컴포넌트별로 다이어그램을 분리
+  architectures?: ProjectArchitecture[]
   issues?: Issue[]
   metrics?: { label: string; value: string }[]
 }
 
 // 이 배열의 숫자 순서대로 Projects 섹션에 표시됩니다
-export const projectOrder = [5, 1, 7, 6, 8, 4, 9, 10, 3, 2]
+export const projectOrder = [11, 5, 1, 7, 6, 8, 4, 9, 10, 3, 2]
 
 export const projects: Project[] = [
   {
@@ -853,6 +864,291 @@ export const projects: Project[] = [
   SQS -->|콜백 전달| Partners["20+ 광고 파트너"]
   GHA["GitHub Actions"] -->|CI/CD| EB["AWS EB"]
   API -->|APM 트레이싱| DD["DataDog"]`,
+  },
+  {
+    id: 11,
+    label: 'Dev',
+    name: 'forge 시리즈 — 백엔드 공유 모듈 오픈소스 생태계',
+    summary: '재사용 가능한 백엔드 공유 모듈(node-forge, kafka-forge)을 만들고, 실제 아키텍처 실험(forgeLab)으로 검증하며 발견한 버그를 실제 버전업까지 반영한 오픈소스 생태계',
+    start: '2026.07',
+    description: [
+      'node-forge: NestJS/Fastify 공용 모듈 12종(core·response·logger·redis·database·http·events·metrics·versioning·health·auth·grpc)을 GitHub Packages로 배포 — 프레임워크 무관 코어와 NestJS/Fastify 어댑터를 분리',
+      'kafka-forge: 토픽 네이밍 컨벤션, Event Contract, Zod 스키마 검증, 재시도+DLQ, 멱등성(claim/release), Outbox 패턴, OTel 트레이싱, Prometheus 메트릭, 폴리글랏 JSON Schema 내보내기를 표준 제공하는 Kafka 코어 모듈',
+      'forgeLab: 두 패키지를 상대경로가 아닌 실제 npm 설치로 검증하는 모노레포 — Redis ZSET 기반 가상 대기열(waiting-room), Kafka 이벤트 기반 실시간 랭킹(live-ranking), TypeORM 기반 Outbox 패턴(order-outbox), gRPC 기반 saga 분산 트랜잭션(msa-checkout) 4개 실험 서비스',
+      'dashboard(Fastify)로 실험 서비스 기동·상태·아키텍처 문서·이슈 이력을 한 화면에서 관리 — 서비스는 forge-lab.json 선언만으로 대시보드에 자동 등록',
+      '실 소비 중 발견한 버그를 proposals/ 제안서로 정리 → 각 패키지 레포에서 직접 반영·배포하는 워크플로 확립, 총 20건의 실전 이슈를 버전별로 추적',
+    ],
+    stack: ['TypeScript', 'NestJS', 'Fastify', 'KafkaJS', 'Redis', 'Redpanda', 'TypeORM', 'PostgreSQL', 'gRPC', 'Zod', 'OpenTelemetry', 'Prometheus'],
+    metrics: [
+      { label: 'node-forge 버전', value: 'v1.0.8' },
+      { label: 'kafka-forge 버전', value: 'v1.0.5' },
+      { label: '발견→반영 이슈', value: '20건' },
+      { label: '실험 서비스', value: '4개' },
+    ],
+    issues: [
+      {
+        title: '패키지 exports 맵 오류 — require()로 전체 서브패스 로드 불가',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'forgeLab에서 `@paikpaik/node-forge`를 실제 `npm install`로 설치해서 처음 써보는 순간 막혔다. `package.json`의 `exports` 맵이 `.`, `./core`, `./response/nestjs` 등 모든 서브패스에서 `require` 조건에 존재하지 않는 `.cjs` 파일을 가리키고 있어서, CommonJS로는 어떤 서브패스도 로드할 수 없었다.',
+        solution: '`require` 조건은 실제 산출물(`.js`)을, `import` 조건은 `.mjs`를 가리키도록 exports 맵을 전면 수정했다. 이후 `npm pack`으로 실제 패키징된 tarball을 설치해서 서브패스별로 로드되는지 확인하는 스모크 테스트를 CI에 추가해서, 로컬 소스 import로는 재현되지 않고 실제 설치했을 때만 드러나는 이런 버그를 다시는 놓치지 않게 했다.',
+        impact: 'GitHub Packages 배포 v1.0.1에서 반영',
+        relatedNodes: ['Pkg'],
+      },
+      {
+        title: 'tsup 번들 분할로 클래스 중복 생성 — instanceof 매칭 실패로 에러가 500으로 새어나감',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'exports 맵을 고치고 나니 이번엔 `ForgeExceptionFilter`가 `ForgeBizError`를 하나도 못 잡는 문제가 생겼다. tsup을 `splitting: false`로 빌드하다 보니 `core/index.js`, `response/nestjs/index.js` 등 엔트리마다 `ForgeBizError` 클래스가 각자 따로 번들링돼서, 서비스 코드가 던진 인스턴스와 필터가 import한 클래스가 자바스크립트 상으로는 서로 다른 클래스가 되어 있었다. `instanceof` 체크가 실패하니 필터를 그냥 통과해 500으로 떨어졌다.',
+        solution: 'tsup 설정을 `splitting: true`로 바꿔서 공유 청크로 클래스를 단일화했다. exports 맵 문제 때와 마찬가지로 실제로 패키징된 걸 설치해야만 드러나는 종류의 버그라, 앞서 추가해둔 `npm pack` 기반 스모크 테스트가 여기서도 그대로 효과를 봤다.',
+        impact: 'GitHub Packages 배포 v1.0.2에서 반영',
+        relatedNodes: ['Pkg'],
+      },
+      {
+        title: 'Redis zadd에 NX 옵션 부재 — 대기열 중복 등록 레이스컨디션',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'waiting-room에서 같은 사용자가 대기열에 중복 등록되지 않게 막으려다 보니, node-forge의 `zadd`가 `entries`만 받고 NX/XX 옵션이 없다는 걸 알았다. `zscore`로 존재 여부를 먼저 확인하고 없으면 `zadd`하는 식으로 나누면, 그 사이(TOCTOU)에 같은 사용자의 요청이 동시에 두 번 들어오면 둘 다 통과해버렸다.',
+        solution: '`zadd(key, entries, { mode: \'NX\' | \'XX\', ch? })` 옵션을 node-forge에 추가했다. 조회 후 쓰기로 나누는 대신 원자적으로 "없으면만 추가"가 가능해져서, waiting-room의 중복 등록 방지를 `getClient()`로 우회하지 않고도 wrapped API 그대로 구현할 수 있게 됐다.',
+        impact: 'GitHub Packages 배포 v1.0.3에서 반영',
+        relatedNodes: ['RedisMod'],
+      },
+      {
+        title: '성공 응답 인터셉터만 있고 짝이 되는 에러 필터가 없음',
+        status: 'closed',
+        component: 'node-forge',
+        problem: '`ResponseInterceptor`가 성공 응답을 `ok()` 포맷으로 감싸주는 건 있었는데, 실패했을 때 `ForgeBizError`를 `fail()` 포맷으로 변환해주는 짝이 없어서 서비스마다 이 변환을 각자 구현해야 했다. 표준 응답 포맷을 만든 의미가 절반만 지켜지는 셈이었다.',
+        solution: '`response/nestjs`에 `ForgeExceptionFilter`를 추가했다. `HttpAdapterHost`를 사용해서 Express/Fastify 어댑터 모두 지원하도록 만들어서, 인터셉터와 필터가 항상 짝으로 붙게 했다.',
+        impact: 'GitHub Packages 배포 v1.0.1에서 반영',
+        relatedNodes: ['Response'],
+      },
+      {
+        title: '헬스체커가 호출마다 재실행 — 무거운 체커의 비용 반복',
+        status: 'closed',
+        component: 'node-forge',
+        problem: '`HealthChecker`가 `/health` 호출마다 등록된 체커를 그대로 재실행하는 구조였다. Kafka Admin처럼 커넥션 자체가 무거운 체커를 등록하면, 로드밸런서가 헬스체크를 자주 때릴수록 매번 새 연결을 열고 닫는 비용이 그대로 반복됐다.',
+        solution: '`checkHealth`/`HealthModule.forRootAsync`에 `cacheMs` 옵션을 추가해서, 지정한 시간 안의 반복 호출은 마지막 결과를 재사용하도록 만들었다. 옵션을 생략하면 기존과 동일하게 동작해서 하위 호환도 유지했다.',
+        impact: 'GitHub Packages 배포 v1.0.4에서 반영',
+        relatedNodes: ['Health'],
+      },
+      {
+        title: '분산 트레이싱 traceId 포맷 불일치 — 발급 시점에 정규화',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'msa-checkout에 node-forge 1.0.7의 trace 전파 기능(`runWithRequestContext`, `TraceAccessLogMiddleware`)을 막 붙이고 gateway와 orchestrator 로그를 나란히 비교하다가 이상한 걸 발견했다. 같은 요청인데 gateway 로그의 traceId는 하이픈 있는 UUID 형태였고, orchestrator 로그의 traceId는 하이픈 없는 32자 hex였다. 추적해보니 trace를 처음 여는 지점에서 `crypto.randomUUID()`를 그대로 쓰고 있었는데, 하위 프로세스로 전파할 때만 `buildTraceparent()`가 하이픈을 벗겨서 내보내고 있었다. 같은 trace인데 로그마다 문자열이 달라서, traceId로 정확 일치 grep을 하면 최초 요청을 받은 프로세스의 로그만 빠지는 상황이었다.',
+        solution: 'W3C 규격 그대로(32자 소문자 hex, 하이픈 없음) traceId를 발급하는 `generateTraceId()`를 core에 추가하고, `logger/nestjs`·`grpc/nestjs`뿐 아니라 1.0.7 이전부터 있던 `logger/fastify`까지 세 곳 전부 `randomUUID()` 호출을 교체하는 제안서를 냈다. 하루 만에 1.0.8로 반영됐고, 반영 후 gateway/orchestrator 양쪽 로그를 다시 뽑아 같은 요청의 traceId 문자열이 `grep -c`로 정확히 일치하는지 재검증했다.',
+        impact: 'GitHub Packages 배포 v1.0.8에서 반영, gateway/orchestrator 로그 traceId 문자열 일치를 grep -c로 재검증',
+        relatedNodes: ['Core'],
+      },
+      {
+        title: '멱등성 저장소의 사후 마킹 — 크래시 윈도우와 DLQ 재처리 두 가지 구멍',
+        status: 'closed',
+        component: 'kafka-forge',
+        problem: 'live-ranking에서 kafka-forge를 처음 실 소비자로 붙이면서 `StandardConsumer`의 멱등성 처리 순서를 유심히 보게 됐다. "확인 → 이펙트 적용 → 마킹"이 사후 순서라서, 이펙트를 적용한 뒤 마킹하기 전에 컨슈머가 죽거나 컨슈머 그룹 리밸런스로 파티션을 빼앗기면, 재배달됐을 때 `wasProcessed`가 여전히 false라서 이펙트가 중복 적용될 수 있었다. `IdempotencyStore`가 정확히 막아야 할 상황에서 못 막고 있었다.',
+        solution: '`IdempotencyStore`에 선택적 `claim(key)`을 추가해서, 있으면 핸들러 실행 전에 원자적으로 선점하고 사후 `markProcessed` 호출은 건너뛰도록 만들었다. 그런데 이렇게 하고 나니 새로운 문제가 보였다 — `claim`이 성공/실패를 구분하지 못해서, 재시도까지 다 실패해 DLQ로 이동한(한 번도 성공한 적 없는) 메시지도 영구히 선점된 상태로 남아버렸다. 버그를 고치고 같은 메시지를 재발행해도 "이미 처리됨"으로 조용히 스킵되어, DLQ 재처리라는 가장 흔한 운영 패턴이 막히는 것이었다. 그래서 선택적 `release(key)`를 추가해서, `claim`으로 선점했지만 재시도 소진 후 DLQ로 이동하면 `StandardConsumer`가 자동으로 선점을 되돌리도록 했다. 성공한 메시지는 `release`를 호출하지 않아서 크래시 윈도우 보호는 그대로 유지된다. `claim`/`release`를 구현하지 않은 기존 저장소는 이전 동작 그대로 동작해서 하위 호환도 깨지지 않았다.',
+        impact: 'GitHub Packages 배포 v1.0.3(claim), v1.0.4(release)에서 반영',
+        relatedNodes: ['Idem'],
+      },
+      {
+        title: '메트릭 레지스트리 싱글턴 — 서비스 자체 /metrics와 합칠 수 없음',
+        status: 'closed',
+        component: 'kafka-forge',
+        problem: 'kafka-forge의 발행/소비 지표가 모듈 로드 시점에 고정된 싱글턴 `metricsRegistry`에만 등록돼서, 소비 서비스가 자기 Registry(예: node-forge의 `ForgeMetrics.registry`)와 합쳐 하나의 `/metrics`로 노출할 방법이 없었다. 서비스마다 `/metrics`와 `/metrics/kafka`를 따로 노출해야 하는 상황이었다.',
+        solution: '이미 만들어진 지표를 외부 Registry에도 등록할 수 있는 `registerMetricsInto(registry)`를 추가했다. 기존 `metricsRegistry` 노출은 그대로 둬서 하위 호환을 유지하면서, 원하는 서비스는 자기 Registry에 합쳐 엔드포인트 하나로 노출할 수 있게 됐다.',
+        impact: 'GitHub Packages 배포 v1.0.2에서 반영',
+        relatedNodes: ['Metrics'],
+      },
+      {
+        title: 'Outbox 배치 발행 중 헤드-오브-라인 블로킹',
+        status: 'closed',
+        component: 'kafka-forge',
+        problem: 'order-outbox에 kafka-forge를 실 소비자로 붙이고 나서 `OutboxPublisher.publishPending()` 소스를 다시 읽다가, 배치 안의 레코드 하나가 발행에 실패하면 그 자리에서 예외를 던지는 구조라는 걸 발견했다. `psql`로 정상 주문 → 유효하지 않은 topic을 가진 독성 주문 → 정상 주문 순서로 3건을 직접 삽입해 재현해봤는데, 결과가 셋 다 나빴다. 앞쪽 정상 레코드는 이미 발행에 성공했는데도 `markPublished`가 호출되지 않아 폴링(5초 간격)마다 중복 발행됐고(`kafka_forge_produced_total`이 40초 동안 5씩 증가), 독성 레코드는 재시도 횟수 제한이 없어 `produce_errors_total`이 무한정 늘어났고, 뒤쪽 정상 레코드는 독성 레코드에 막혀 테스트 내내 `publishedAt`이 null이었다(head-of-line blocking).',
+        solution: '배치 루프가 개별 레코드 실패에 더 이상 `throw`하지 않고 로그·`produce_errors_total` 지표만 남긴 뒤 다음 레코드로 계속 진행하도록 고치는 제안서를 냈다. 동시에 영구 실패 레코드를 격리할 방법이 없다는 것도 발견해서, `OutboxStore`에 선택적 `markFailed(id, error)` 훅을 추가하는 제안서도 함께 냈다 — "몇 번 실패하면 죽었다고 볼지"는 kafka-forge가 정하지 않고 저장소 구현체(`TypeormOutboxStore`)가 `attempts`/`deadAt` 컬럼으로 직접 판단하게 했다(`IdempotencyStore`의 claim/release와 동일한 저장소-정책 분리 원칙). 두 제안 모두 1.0.5로 반영된 뒤, 같은 순서(정상→독성→정상)로 실제 컨테이너를 띄워 재검증했다 — 독성 주문은 5번째 시도에서 `deadAt`이 세팅되며 영구 격리됐고(`GET /outbox/dead`로 확인), 뒤쪽 정상 주문은 더 이상 막히지 않고 정상 confirmed됐다.',
+        impact: 'GitHub Packages 배포 v1.0.5(부분 실패 수정 + markFailed 훅)에서 반영. 재검증 결과 정상 발행 카운트는 중복 없이 2건(사전+사후), 에러 카운트는 정확히 5회(OUTBOX_MAX_ATTEMPTS)에서 멈춤',
+        relatedNodes: ['Outbox'],
+      },
+      {
+        title: '대기열 등록 레이스컨디션 — TOCTOU 검사를 원자적 ZADD NX로',
+        status: 'closed',
+        component: 'waiting-room',
+        problem: '대기열 코드를 리뷰하다가 `register()`가 `zscore`로 기존 등록 여부를 확인한 뒤 `zadd`로 쓰는 두 단계 구조라는 걸 발견했다. 같은 사용자가 거의 동시에 두 번 요청하면 확인과 쓰기 사이(TOCTOU)에 둘 다 통과해서, 두 번째 요청이 첫 번째의 대기 순번을 조용히 덮어썼다. 같은 리뷰에서 발급만 되고 검증 경로가 없던 입장 토큰, admission 대상이 아닌 room으로 등록해도 성공 응답 후 영원히 처리되지 않는 문제도 같이 발견해서 함께 고쳤다.',
+        solution: 'node-forge의 `zadd`엔 NX 옵션이 없어서, 먼저 문서화된 탈출구인 `getClient()`로 raw ioredis `ZADD NX`를 직접 호출해 원자적으로 바꿨다. 같은 날 이 gap을 제안서로 남겼는데, 그날 안에 node-forge가 `zadd(key, entries, { mode: "NX" })` 옵션을 정식으로 추가해서 1.0.3으로 배포했고, forgeLab도 곧바로 올려서 `getClient()` 우회 없이 wrapped API로 되돌렸다. 동시 등록 10건 중 정확히 1건만 성공하는 걸 실제로 검증했다.',
+        impact: '동시 등록 10건 → 1건만 성공, 레이스 컨디션 해소 확인',
+        relatedNodes: ['API', 'ZSet'],
+      },
+      {
+        title: 'Admission 부분 실패 시 유저 유실 — peek 후 성공분만 커밋하는 방식으로 재설계',
+        status: 'closed',
+        component: 'waiting-room',
+        problem: '`AdmissionService`가 `zpopmin`으로 대기열에서 유저를 먼저 꺼낸(커밋한) 뒤 입장 토큰을 저장했는데, 토큰 저장이 실패하면 그 유저는 대기열에도 admitted 상태에도 없이 사라졌다. 게다가 `Promise.all`이라 배치 중 하나만 실패해도 그 배치 전체의 메트릭 갱신까지 스킵됐다.',
+        solution: '처음엔 `Promise.allSettled`로 바꾸고 실패한 유저를 원래 등록 시각(재시도 시점의 현재 시각이 아니라)으로 다시 `zadd`해서 대기열에 복구하는 방식으로 고쳤다. 그런데 다시 보니 애초에 `zpopmin`으로 먼저 지우고 실패하면 되돌리는 방식 자체가 필요 없다는 걸 깨달았다 — `zrangeWithScores`로 조회(peek)만 하고, 실제로 토큰 저장까지 성공한 유저만 마지막에 `zrem`으로 지우는 방식으로 재설계하면 애초에 유실될 수가 없었다. 재등록 로직이 통째로 사라지면서 코드도 더 단순해졌다.',
+        impact: '테스트 18건 전부 통과, 강제 종료 상황에서도 유저 유실 없음을 검증',
+        relatedNodes: ['Admission', 'ZSet'],
+      },
+      {
+        title: 'gRPC 클라이언트가 스케일아웃한 두 번째 인스턴스로 트래픽을 보내지 않음',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'msa-checkout에서 inventory-service를 2개 인스턴스로 띄워 "재고 1개에 동시 요청 2건 → 정확히 1건만 성공"하는 다중 인스턴스 정합성을 검증하려는데, 겉보기엔 에러 없이 정상 동작하는 이상한 상황을 만났다. `docker stats`로 두 컨테이너의 NET I/O를 비교해보니 한쪽만 계속 늘고 다른 한쪽은 거의 안 늘고 있었다 — 두 번째 인스턴스가 스케일아웃된 이후로 트래픽을 한 번도 못 받고 있었던 것이다. `@grpc/grpc-js`의 기본 로드밸런싱 정책이 `pick_first`라서, Docker 임베디드 DNS가 같은 서비스명에 여러 IP를 돌려줘도 클라이언트가 최초 연결에 성공한 인스턴스 하나에 그대로 고정돼버리는 게 원인이었다.',
+        solution: 'node-forge에 `grpc` 모듈을 신설해서, `dns:///` 스킴과 `round_robin` LB 정책을 기본값으로 켜는 클라이언트 옵션 헬퍼(`buildGrpcClientChannelOptions`/`createGrpcClientOptions`)를 제안했다. 몰라도 에러 없이 조용히 한쪽만 쓰게 되는 종류의 설정이라, 다음에 gRPC를 쓰는 실험이 생겨도 같은 문제를 처음부터 반복하지 않도록 옵트인이 아니라 기본값으로 강제했다. 1.0.5로 반영된 뒤 다시 `docker stats`로 검증했다 — 두 인스턴스의 NET I/O 증가량이 각각 +13.4kB로 거의 동일하게 분산되는 것을 확인했다.',
+        impact: 'GitHub Packages 배포 v1.0.5에서 반영, docker stats NET I/O 실측으로 양쪽 인스턴스 트래픽 분산 확인',
+        relatedNodes: ['Grpc'],
+      },
+      {
+        title: 'HMAC을 두 번째로 또 짜다가 — auth 모듈을 언제 forge로 올릴지',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'msa-checkout의 게이트웨이 인증을 waiting-room 때처럼 HMAC을 직접 구현해서 시작했다가, 코드를 절반쯤 쓰다 말고 손을 멈췄다. waiting-room에서 이미 한 번 짠 "Bearer 헤더 추출 → 서명 검증 → request.user 세팅" 로직을 사실상 그대로 다시 타이핑하고 있었기 때문이다. forgeLab의 원칙("두 번째 필요 사례가 생길 때 추출")대로라면 지금이 그 두 번째 사례인데, 이번엔 HMAC이 아니라 JWT로 바꿔야 하는지도 같이 판단해야 했다 — node-forge는 forgeLab 검증용 도구가 아니라 실서비스에도 쓸 수 있는 걸 목표로 하고, 회원 인증의 bearer 토큰은 업계 표준이 사실상 JWT이기 때문이다.',
+        solution: '바로 forge에 얹지 않고, 이번에도 먼저 `@nestjs/jwt`로 로컬 구현해 검증부터 마쳤다 — 변조한 role 클레임(customer→admin)을 관리자 라우트에 보내 401을 확인하고, TTL 3초짜리 토큰으로 발급 직후 성공/4초 후 401을 실제로 재현하는 식으로. 이 검증을 근거로 `auth` 모듈 제안서를 냈고, Account 영속화나 refresh-token 로테이션처럼 이 랩의 두 실험 어디에도 아직 필요 없는 범위는 스코프에서 뺐다 — node-forge가 이미 지켜온 "저장소는 소비 서비스 책임"(IdempotencyStore/OutboxStore와 동일 원칙) 그대로, 발급/검증/역할가드까지만 제안했다. 1.0.5로 반영된 뒤 로컬 구현을 걷어내고 공식 API(`signToken`/`verifyToken`, `JwtAuthModule`/`JwtAuthGuard`/`RolesGuard`)로 교체했다.',
+        impact: 'GitHub Packages 배포 v1.0.5에서 반영',
+        relatedNodes: ['Auth'],
+      },
+      {
+        title: '반영 직후 새 버그 — RolesGuard의 Reflector DI가 실제 배포본에서만 실패',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'msa-checkout에 막 반영된 node-forge 1.0.5의 `auth/nestjs` `RolesGuard`를 붙이자마자 `@Roles()`가 붙은 모든 라우트가 500으로 떨어졌다. 소스는 멀쩡해 보였다 — 생성자 타입 추론(`constructor(private reflector: Reflector)`)에만 의존하고 있었는데, 실제로 설치한 `dist`를 열어보니 tsup(esbuild) 빌드가 `emitDecoratorMetadata`의 `design:paramtypes`를 방출하지 않아서 `Reflector`가 `undefined`로 주입되고 있었다. 1.0.2에서 겪었던 "번들러가 리플렉션 메타데이터를 조용히 날린다"는 버그와 같은 원인 클래스가, 이번엔 클래스 중복이 아니라 파라미터 데코레이터 누락이라는 다른 얼굴로 재발한 것이었다.',
+        solution: '`constructor(@Inject(Reflector) private readonly reflector: Reflector)`로 파라미터 데코레이터를 명시하는 제안서를 냈다. 같은 패턴(생성자 타입 추론에만 의존)으로 짜여 있던 `EventsExplorer`(discovery/scanner/reflector)도 코드베이스에서 같이 찾아내 함께 고치도록 제안에 포함시켰다. 1.0.6으로 반영되자마자 임시로 붙여뒀던 로컬 서브클래싱 우회 코드를 걷어내고 원래 API로 되돌렸다. node-forge 쪽에는 스모크 테스트에 `design:paramtypes` 메타데이터 검증과 `EventsModule` 실제 부팅 테스트를 추가해서, 같은 클래스의 버그가 세 번째로 재발하기 전에 CI가 잡도록 했다.',
+        impact: 'GitHub Packages 배포 v1.0.6에서 반영, 로컬 우회 코드 제거',
+        relatedNodes: ['Auth'],
+      },
+      {
+        title: '재고 확인 후 차감의 TOCTOU — 원자적 조건부 UPDATE로 교체',
+        status: 'closed',
+        component: 'msa-checkout',
+        problem: 'saga의 inventory Try 단계를 처음엔 "SELECT로 남은 수량 확인 → 애플리케이션에서 `total - reserved >= qty` 검사 → UPDATE로 예약"이라는 익숙한 2단계로 짰다. inventory-service를 2개 인스턴스로 띄워 다중 인스턴스 정합성을 검증하는 게 이 실험의 핵심 목적인데, 이 방식으로는 두 인스턴스가 거의 동시에 같은 상품을 조회하면 둘 다 통과 조건을 만족한 뒤 각자 UPDATE를 날려서 재고가 마이너스로 내려갈 수 있는 TOCTOU였다.',
+        solution: '조회와 검사를 애플리케이션에서 분리하는 대신, `UPDATE inventory SET reserved = reserved + :qty WHERE total - reserved >= :qty`처럼 조건과 갱신을 하나의 원자적 SQL 문으로 합쳤다. 동시에 두 요청이 들어와도 DB 레벨에서 한쪽만 조건을 만족해 영향받은 행이 1건이 되고, 나머지 한쪽은 영향받은 행이 0건이라 자연스럽게 실패로 판정된다. saga의 Try 순서도 order를 inventory보다 먼저 호출하도록 설계했는데, 재고 부족이 이 실험의 핵심 실패 시나리오라서 반드시 그 실패 경로에서 order-service의 CancelOrder(보상) gRPC 호출이 실제로 실행되도록 순서를 맞춘 것이다.',
+        impact: '재고 1개에 동시 요청 2건 → 정확히 1건만 성공, 나머지는 CancelOrder 보상 트랜잭션으로 정상 롤백 확인',
+        relatedNodes: ['INV1', 'INV2'],
+      },
+    ],
+    architectures: [
+      {
+        key: 'overview',
+        label: '전체 개요',
+        diagram: `graph TD
+  Dev["개발자"] -->|npm install| NF["node-forge (GitHub Packages)"]
+  Dev -->|npm install| KF["kafka-forge (GitHub Packages)"]
+  subgraph ForgeLab["forgeLab 모노레포"]
+    Dashboard["dashboard :4000 (Fastify)"] -->|Up/Down/Status| WR["waiting-room :3000"]
+    Dashboard -->|Up/Down/Status| LR["live-ranking (ingest:3100/aggregator:3101)"]
+    Dashboard -->|Up/Down/Status| OO["order-outbox (api:3200/fulfillment:3201)"]
+    Dashboard -->|Up/Down/Status| MC["msa-checkout (gateway:3300/orchestrator:3301/order:3302/inventory×2)"]
+  end
+  WR -->|설치| NF
+  LR -->|설치| NF
+  LR -->|설치| KF
+  OO -->|설치| NF
+  OO -->|설치| KF
+  MC -->|설치| NF
+  NF -.->|버그 발견 시 제안서| Proposals["proposals/"]
+  KF -.->|버그 발견 시 제안서| Proposals
+  Proposals -.->|반영 후 버전업| NF
+  Proposals -.->|반영 후 버전업| KF`,
+      },
+      {
+        key: 'node-forge',
+        label: 'node-forge',
+        diagram: `graph TD
+  Core["core (프레임워크 무관 타입/유틸, traceparent 포함)"]
+  subgraph Modules["12개 모듈"]
+    Response["response"]
+    Logger["logger (pino)"]
+    RedisMod["redis (ioredis)"]
+    Database["database (TypeORM)"]
+    Http["http (axios)"]
+    Events["events"]
+    Metrics["metrics (prom-client)"]
+    Versioning["versioning"]
+    Health["health"]
+    Auth["auth (jsonwebtoken)"]
+    Grpc["grpc (round_robin LB 옵션 + 트레이싱 인터셉터)"]
+  end
+  Pkg["package.json exports / tsup 빌드"]
+  Core --> Modules
+  Modules -->|서브패스 /nestjs| NestAdapter["NestJS 어댑터"]
+  Modules -->|서브패스 /fastify| FastifyAdapter["Fastify 어댑터"]
+  NestAdapter --> Services["소비 서비스 (waiting-room 등)"]
+  FastifyAdapter --> Services
+  Modules -.->|배포 산출물 경로| Pkg`,
+      },
+      {
+        key: 'kafka-forge',
+        label: 'kafka-forge',
+        diagram: `graph TD
+  Contract["defineEvent() Event Contract"] --> Producer["StandardProducer"]
+  Contract --> Consumer["StandardConsumer"]
+  Producer -->|Zod 검증 후 send| Redpanda[("Redpanda / Kafka")]
+  Redpanda -->|subscribe| Consumer
+  Consumer -->|재시도 소진| Dlq["<topic>.dlq"]
+  Consumer <-->|claim/release| Idem["IdempotencyStore"]
+  Outbox["OutboxPublisher"] -->|DB 트랜잭션 이후 발행| Redpanda
+  Producer -.->|OTel span| Tracing["분산 트레이싱"]
+  Consumer -.->|OTel span| Tracing
+  Producer -.->|메트릭| Metrics["Prometheus Registry"]
+  Consumer -.->|메트릭| Metrics`,
+      },
+      {
+        key: 'waiting-room',
+        label: 'waiting-room',
+        diagram: `graph TD
+  User["사용자"] -->|panel.html| API["WaitingRoomController"]
+  API -->|zadd NX / zrank / zcard| ZSet[("Redis ZSET: queue")]
+  Admission["AdmissionService (5초 주기)"] -->|peek 후 성공분만 zrem| ZSet
+  Admission -->|입장 토큰 발급| Token["TokenService (HMAC)"]
+  Token --> TokenStore[("Redis: admitted:*")]
+  NodeForge["node-forge (redis/response/logger/metrics/health)"] -.-> API
+  NodeForge -.-> Admission`,
+      },
+      {
+        key: 'live-ranking',
+        label: 'live-ranking',
+        diagram: `graph TD
+  Client["사용자"] -->|POST /leaderboards/:id/events| Ingest["ingest :3100 (Producer)"]
+  Ingest -->|StandardProducer.send| Topic[("ranking.score-events.v1")]
+  Topic -->|subscribe| Aggregator["aggregator :3101 (Consumer)"]
+  Aggregator -->|claim/release 멱등성| IdemStore[("Redis: idempotency:*")]
+  Aggregator -->|zincrby| Rank[("Redis ZSET: ranking")]
+  Aggregator -->|재시도 소진| Dlq[("...v1.dlq")]
+  Dlq -->|subscribe| DlqConsumer["ScoreEventDlqConsumer"]
+  DlqConsumer -->|lpush| DlqLog[("Redis LIST: dlq log")]
+  KafkaForge["kafka-forge (producer/consumer/idempotency)"] -.-> Ingest
+  KafkaForge -.-> Aggregator`,
+      },
+      {
+        key: 'order-outbox',
+        label: 'order-outbox',
+        diagram: `graph TD
+  User["사용자"] -->|panel.html| API["api :3200 (OrdersController/OrdersService)"]
+  API -->|같은 트랜잭션으로 커밋| ORDERS[("Postgres: orders")]
+  API -->|같은 트랜잭션으로 커밋| OUTBOX[("Postgres: outbox_records")]
+  PUB["OutboxPublisherService (@Interval 5초)"] -->|fetchPending| STORE["TypeormOutboxStore"]
+  STORE --> OUTBOX
+  PUB -->|publish| TOPIC[("Redpanda: order.created.v1")]
+  STORE -->|"markPublished / markFailed"| OUTBOX
+  DEADAPI["OutboxController (GET /outbox/dead)"] -->|listDead| STORE
+  TOPIC -->|subscribe| CONS["fulfillment :3201 (OrderCreatedConsumer)"]
+  CONS -->|status='confirmed'| ORDERS
+  KafkaForge["kafka-forge (Outbox/Producer/Consumer)"] -.-> PUB
+  KafkaForge -.-> CONS`,
+      },
+      {
+        key: 'msa-checkout',
+        label: 'msa-checkout',
+        diagram: `graph TD
+  User["사용자"] -->|HTTP| GW["gateway :3300 (Auth/Checkout/AdminController)"]
+  GW -->|"gRPC StartCheckout/GetSagaStatus"| ORCH["orchestrator :3301 (SagaService/SagaProcessorService)"]
+  ORCH -->|"gRPC TryOrder/ConfirmOrder/CancelOrder"| ORDER["order-service :3302"]
+  ORCH -->|"gRPC TryReserve/ConfirmReserve/CancelReserve (round_robin)"| INV1["inventory-service #1"]
+  ORCH -->|"gRPC (round_robin)"| INV2["inventory-service #2"]
+  ORDER --> ORDERDB[("Postgres: orders")]
+  INV1 --> INVDB[("Postgres: inventory")]
+  INV2 --> INVDB
+  ORCH --> SAGADB[("Postgres: saga_state")]
+  NodeForge["node-forge (auth/grpc/core trace)"] -.-> GW
+  NodeForge -.-> ORCH`,
+      },
+    ],
   },
 ]
 

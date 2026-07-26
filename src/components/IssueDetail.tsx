@@ -15,6 +15,13 @@ export default function IssueDetail({ project, issue, onClose }: IssueDetailProp
   const [expanded, setExpanded] = useState(false)
   const ls = labelStyle[project.label]
 
+  // 여러 컴포넌트로 나뉜 프로젝트면 이슈가 속한 컴포넌트의 다이어그램을, 아니면 기본 다이어그램을 고른다
+  const diagram = project.architectures?.length
+    ? (project.architectures.find((d) => d.key === issue.component) ?? project.architectures[0])
+    : project.architecture
+      ? { key: '_default', label: '아키텍처', diagram: project.architecture }
+      : null
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-start justify-between border-b border-neutral-100 px-8 py-8">
@@ -81,12 +88,14 @@ export default function IssueDetail({ project, issue, onClose }: IssueDetailProp
           </section>
         )}
 
-        {project.architecture && (
+        {diagram && (
           <div className="mt-8">
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">관련 아키텍처</h3>
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">
+              관련 아키텍처{diagram.key !== '_default' ? ` — ${diagram.label}` : ''}
+            </h3>
             <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2">
               <MermaidDiagram
-                chart={project.architecture}
+                chart={diagram.diagram}
                 highlightNodeIds={issue.relatedNodes}
                 onExpand={() => setExpanded(true)}
               />
@@ -98,9 +107,9 @@ export default function IssueDetail({ project, issue, onClose }: IssueDetailProp
         )}
       </div>
 
-      {expanded && project.architecture && (
+      {expanded && diagram && (
         <ArchitectureModal
-          chart={project.architecture}
+          chart={diagram.diagram}
           highlightNodeIds={issue.relatedNodes}
           onClose={() => setExpanded(false)}
         />

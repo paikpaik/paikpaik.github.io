@@ -122,10 +122,11 @@ export default function App() {
         }`}
       >
         {selectedProject && (
-          <ProjectDetail project={selectedProject} onClose={handleClose} />
+          <ProjectDetail key={selectedProject.id} project={selectedProject} onClose={handleClose} />
         )}
         {selectedIssue && (
           <IssueDetail
+            key={`${selectedIssue.project.id}-${selectedIssue.issue.title}`}
             project={selectedIssue.project}
             issue={selectedIssue.issue}
             onClose={handleClose}
