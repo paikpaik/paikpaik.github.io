@@ -874,16 +874,16 @@ export const projects: Project[] = [
     description: [
       'node-forge: NestJS/Fastify 공용 모듈 12종(core·response·logger·redis·database·http·events·metrics·versioning·health·auth·grpc)을 GitHub Packages로 배포 — 프레임워크 무관 코어와 NestJS/Fastify 어댑터를 분리',
       'kafka-forge: 토픽 네이밍 컨벤션, Event Contract, Zod 스키마 검증, 재시도+DLQ, 멱등성(claim/release), Outbox 패턴, OTel 트레이싱, Prometheus 메트릭, 폴리글랏 JSON Schema 내보내기를 표준 제공하는 Kafka 코어 모듈',
-      'forgeLab: 두 패키지를 상대경로가 아닌 실제 npm 설치로 검증하는 모노레포 — Redis ZSET 기반 가상 대기열(waiting-room), Kafka 이벤트 기반 실시간 랭킹(live-ranking), TypeORM 기반 Outbox 패턴(order-outbox), gRPC 기반 saga 분산 트랜잭션(msa-checkout) 4개 실험 서비스',
+      'forgeLab: 두 패키지를 상대경로가 아닌 실제 npm 설치로 검증하는 모노레포 — Redis ZSET 기반 가상 대기열(waiting-room), Kafka 이벤트 기반 실시간 랭킹(live-ranking), TypeORM 기반 Outbox 패턴(order-outbox), gRPC 기반 saga 분산 트랜잭션(msa-checkout), 분산 서킷브레이커 기반 웹훅 릴레이(webhook-relay), Redis 락·pub/sub 기반 실시간 경매(live-auction), 외부 PG 연동 결제 게이트웨이(payment-gateway) 7개 실험 서비스',
       'dashboard(Fastify)로 실험 서비스 기동·상태·아키텍처 문서·이슈 이력을 한 화면에서 관리 — 서비스는 forge-lab.json 선언만으로 대시보드에 자동 등록',
-      '실 소비 중 발견한 버그를 proposals/ 제안서로 정리 → 각 패키지 레포에서 직접 반영·배포하는 워크플로 확립, 총 20건의 실전 이슈를 버전별로 추적',
+      '실 소비 중 발견한 버그를 proposals/ 제안서로 정리 → 각 패키지 레포에서 직접 반영·배포하는 워크플로 확립, 총 22건의 실전 이슈를 버전별로 추적',
     ],
-    stack: ['TypeScript', 'NestJS', 'Fastify', 'KafkaJS', 'Redis', 'Redpanda', 'TypeORM', 'PostgreSQL', 'gRPC', 'Zod', 'OpenTelemetry', 'Prometheus'],
+    stack: ['TypeScript', 'NestJS', 'Fastify', 'KafkaJS', 'Redis', 'Redpanda', 'TypeORM', 'PostgreSQL', 'gRPC', 'WebSocket', 'Zod', 'OpenTelemetry', 'Prometheus'],
     metrics: [
-      { label: 'node-forge 버전', value: 'v1.0.8' },
+      { label: 'node-forge 버전', value: 'v1.0.10' },
       { label: 'kafka-forge 버전', value: 'v1.0.5' },
-      { label: '발견→반영 이슈', value: '20건' },
-      { label: '실험 서비스', value: '4개' },
+      { label: '발견→반영 이슈', value: '22건' },
+      { label: '실험 서비스', value: '7개' },
     ],
     issues: [
       {
@@ -1021,6 +1021,51 @@ export const projects: Project[] = [
         impact: '재고 1개에 동시 요청 2건 → 정확히 1건만 성공, 나머지는 CancelOrder 보상 트랜잭션으로 정상 롤백 확인',
         relatedNodes: ['INV1', 'INV2'],
       },
+      {
+        title: '인메모리 서킷브레이커가 멀티 인스턴스 배달 워커에서 무력화됨',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'webhook-relay의 delivery-worker를 여러 인스턴스로 스케일해서 특정 엔드포인트로 가는 배달을 인스턴스별로 나눠 처리하게 했더니, node-forge의 `ForgeCircuitBreaker`가 순수 인메모리 클래스라 회로 상태가 프로세스 하나에 갇혀 있다는 게 드러났다. 한 인스턴스가 실패를 3번 겪어 회로를 열어도, 같은 엔드포인트로 가는 다른 인스턴스는 아무것도 모른 채 계속 실패를 두드렸다 — "임계치 도달 시 요청을 막는다"는 circuit breaker 본연의 목적이 인스턴스 수만큼 무력화되는 셈이었다. Kafka 토픽 파티션을 4개로 늘려 delivery-worker 2개 인스턴스가 실제로 서로 다른 파티션을 소비하는 걸 확인한 뒤, 실패 엔드포인트로 이벤트 6건을 동시에 발행해 재현했다.',
+        solution: '`redis` 모듈에 `DistributedCircuitBreaker`를 제안했다 — Redis 해시(`{keyPrefix}:{key}`)에 `state/failures/successes/openedAt`을 저장해 여러 인스턴스가 엔드포인트 ID 같은 키 하나당 회로 상태를 공유하게 했고, HALF_OPEN은 영속 저장 없이 "OPEN + resetTimeout 경과"를 읽기 시점에 가상으로 계산해서 half-open 프로브가 실패하면 즉시 재-OPEN되도록 단순화했다. 로컬로 먼저 구현·검증한 뒤 제안서 2건(기본 기능 + `successThreshold`/`onStateChange` 옵션 동등성 addendum)을 같은 날 1.0.10으로 반영시켰고, 로컬 구현을 공식 API로 전량 교체하면서 자체 상태 전이 테스트 6건은 삭제했다. 실제 컨테이너에서 재검증한 결과 — 로컬(인스턴스별) 회로였다면 6건 다 실제 HTTP 호출이 나갔어야 하는데, 분산 회로 덕분에 최소 1건은 회로 OPEN으로 확실히 막히는 것까지 확인했다.',
+        impact: 'GitHub Packages 배포 v1.0.10에서 반영, 다중 인스턴스 환경에서 회로 상태 공유 실측 검증',
+        relatedNodes: ['RedisMod'],
+      },
+      {
+        title: '폴링 스냅샷이 전이 순간을 놓침 — SSE 실시간 이벤트 버스 신설',
+        status: 'closed',
+        component: 'node-forge',
+        problem: 'order-outbox 패널이 "생성됨→발행됨→확인됨" 3단계를 1초 폴링으로 보여주는데, 실측해보니 발행→확인 사이가 보통 수십~수백ms 안에 끝나서 폴링이 "발행됨" 상태를 거의 항상 놓쳤다(발행 12ms 뒤 확인된 사례 실측). "지금 상태가 뭐냐"만 폴링해서는 중간 전이가 통째로 빠질 수 있다는 걸 깨닫고, 폴링 자체를 걷어내는 대신 서버가 전이가 일어난 순간 이벤트를 실시간으로 밀어주는 방법을 찾았는데, node-forge에는 프로세스 내부 이벤트를 구독하는 기능이 없어서 서비스마다 rxjs `Subject` 브로드캐스터와 `@Sse()` 컨트롤러를 직접 구현해야 했다.',
+        solution: '`events` 모듈에 rxjs `Subject` 기반 멀티캐스트 버스 `AdminEventBus<T>`를, `events/nestjs`에 `AdminEventsModule.forRoot({ path })`를 제안했다 — `@Controller(path)`를 클래스 선언이 아니라 함수 호출로 동적 적용해서 `<path>/stream` SSE 컨트롤러를 자동 생성하는 새로운 패턴이었다. 이런 동적 데코레이터 적용이 esbuild(tsup) 번들 dist에서도 메타데이터를 유지하는지 1.0.6 RolesGuard류 버그의 재발을 막기 위해 자체 smoke-test로 먼저 검증해뒀다. 1.0.9로 반영된 뒤 order-outbox의 api(생성/발행)와 fulfillment(확인, 별도 프로세스) 양쪽에서 로컬 구현을 공식 `AdminEventsModule`로 교체해 실시간 스트리밍이 정상 동작하는 걸 재검증했다.',
+        impact: 'GitHub Packages 배포 v1.0.9에서 반영',
+        relatedNodes: ['Events'],
+      },
+      {
+        title: 'WebSocket 다중 인스턴스 동기화 — Redis pub/sub로 인스턴스 경계 넘기',
+        status: 'closed',
+        component: 'live-auction',
+        problem: 'socket.io의 room 기능만으로는 인스턴스 경계를 넘을 수 없다는 걸 설계 단계에서부터 알고 있었다 — 입찰자가 app-1에, 관전자가 app-3에 WebSocket으로 붙어 있으면, app-1이 입찰을 처리해도 app-3에 연결된 관전자는 아무 것도 못 받는다. 이 실험의 핵심이 "여러 인스턴스로 스케일해도 실시간 동기화가 유지되는가"라서, 인스턴스 간 다리를 놓는 방법 자체가 검증 대상이었다.',
+        solution: 'Redis pub/sub 채널 `auction:events` 하나를 모든 인스턴스가 공통으로 구독하게 했다. 입찰을 실제로 처리한 인스턴스가 `redis.publish()`로 이벤트를 쏘면, 그 인스턴스가 아닌 다른 인스턴스도 자기 자신의 pub/sub 구독을 통해 즉시 같은 이벤트를 받아 자기 소켓 룸에 브로드캐스트하는 구조다. 경매마다 채널을 따로 만들지 않고 페이로드의 `auctionId`로 라우팅해서, 경매 생성/종료마다 구독을 동적으로 관리하는 복잡도를 피했다. 브라우저 탭을 각 인스턴스(3500~3502) 포트로 따로 열어 한쪽에서 입찰하면 다른 쪽 화면에도 실시간으로 반영되는 걸 직접 확인했다.',
+        impact: '3개 인스턴스로 스케일한 상태에서 인스턴스 간 실시간 브로드캐스트 확인',
+        relatedNodes: ['A1', 'A2', 'A3', 'Redis'],
+      },
+      {
+        title: '동시 입찰 중 진 쪽의 이력이 통째로 사라짐',
+        status: 'closed',
+        component: 'live-auction',
+        problem: '`withLock`으로 입찰 처리를 순서대로 직렬화해두니 동시성 버그 자체는 안 생겼지만, 실제 컨테이너로 테스트하다가 다른 문제를 발견했다. 최소 증분 미달이나 이미 종료된 경매에 걸리면 `placeBid()`가 `ForgeBizError`만 던지고 끝나서, `BidEntity` insert 자체가 검증 통과 후에만 실행됐다 — 즉 거절된 입찰은 DB에 전혀 남지 않았다. `withLock`이 동시 요청을 순서대로 처리하기 때문에, 동시에 들어온 두 입찰 중 진 쪽도 이 검증에 걸려 거절되는데 그 이력이 그대로 사라지는 것이었다. 실제 경매라면 "누가 얼마를 불렀는데 이미 늦어서 안 됐다"까지가 감사 대상인데, 그 기록이 통째로 빠지는 셈이었다.',
+        solution: '`BidEntity`에 `status`(ACCEPTED/REJECTED)와 `rejectionReason` 컬럼을 추가해서, 검증에 걸려 거절되는 시점에도(경매 자체가 존재하지 않는 케이스는 제외 — 감사 대상이 될 경매가 없으므로) 행을 남기도록 고쳤다. `listBids()`는 변경 없이 그대로 최근 50건을 반환해서, 이제 진 입찰도 회색 처리+취소선+"거절" 태그로 입찰 이력에 함께 보인다.',
+        impact: '동시 입찰 중 거절된 이력까지 감사 기록에 보존됨을 확인',
+        relatedNodes: ['PG'],
+      },
+      {
+        title: '재시도가 타임아웃 응답을 가로채 거래가 영원히 멈추는 버그',
+        status: 'closed',
+        component: 'payment-gateway',
+        problem: '실제 Docker 3중 검증 중 `ForgeHttpClient`의 재시도(300ms/600ms 지연)가 fake-pg의 6초짜리 타임아웃 시뮬레이션 도중에 발동하는 상황을 만났다. fake-pg가 `clientReference` 기반 멱등성 체크로 "이미 아는 거래"라고 판단해서 재시도 요청에 즉시 `PROCESSING` 응답을 돌려줬는데, 정작 원래 요청은 여전히 타임아웃 중이었다. 그 결과 거래가 `PENDING`에 `pgTransactionId`만 채워진 채로 남았다 — 이건 진짜 비동기 접수(202)가 아니라 재시도가 우연히 가로챈 응답이라 아무도 웹훅을 보내주지 않는다. 초기 구현은 `reconcile()`이 `IN_DOUBT` 상태만 대상으로 삼고 있어서, 이 거래가 영원히 멈춰 있는 버그가 있었다.',
+        solution: '`reconcile()`과 reconciler가 순회하는 대상 목록(`listInDoubt()`)을 `IN_DOUBT`뿐 아니라 "`PENDING`이면서 `pgTransactionId`가 있는" 거래까지 포함하도록 확장했다. PG가 "처리 중"이라고 답한 이상, 그 경로가 웹훅이든 재시도가 우연히 잡아챈 응답이든 상관없이 "누군가는 나중에 확인해야 하는 상태"라는 게 핵심 통찰이었다. 웹훅이 먼저 도착하면 reconciler는 이미 종결 상태라 대상에서 빠지고, reconciler가 먼저 돌면 fake-pg가 아직 `PROCESSING`이라고 답하니 재시도 카운터만 올리고 넘어간다 — 두 경로가 경합해도 서로 덮어쓰지 않는다.',
+        impact: '타임아웃율 100% 설정 후 재현 → PaymentReconcilerService(3초 간격)가 자동으로 거래조회해 FAILED로 해소되는 것 확인',
+        relatedNodes: ['App', 'FakePg'],
+      },
     ],
     architectures: [
       {
@@ -1034,6 +1079,9 @@ export const projects: Project[] = [
     Dashboard -->|Up/Down/Status| LR["live-ranking (ingest:3100/aggregator:3101)"]
     Dashboard -->|Up/Down/Status| OO["order-outbox (api:3200/fulfillment:3201)"]
     Dashboard -->|Up/Down/Status| MC["msa-checkout (gateway:3300/orchestrator:3301/order:3302/inventory×2)"]
+    Dashboard -->|Up/Down/Status| WH["webhook-relay (ingest:3400/delivery-worker×N)"]
+    Dashboard -->|Up/Down/Status| LA["live-auction (app×3: 3500-3502)"]
+    Dashboard -->|Up/Down/Status| PGW["payment-gateway (app:3600/fake-pg:3601)"]
   end
   WR -->|설치| NF
   LR -->|설치| NF
@@ -1041,6 +1089,10 @@ export const projects: Project[] = [
   OO -->|설치| NF
   OO -->|설치| KF
   MC -->|설치| NF
+  WH -->|설치| NF
+  WH -->|설치| KF
+  LA -->|설치| NF
+  PGW -->|설치| NF
   NF -.->|버그 발견 시 제안서| Proposals["proposals/"]
   KF -.->|버그 발견 시 제안서| Proposals
   Proposals -.->|반영 후 버전업| NF
@@ -1147,6 +1199,50 @@ export const projects: Project[] = [
   ORCH --> SAGADB[("Postgres: saga_state")]
   NodeForge["node-forge (auth/grpc/core trace)"] -.-> GW
   NodeForge -.-> ORCH`,
+      },
+      {
+        key: 'webhook-relay',
+        label: 'webhook-relay',
+        diagram: `graph TD
+  Tenant["테넌트(고객사)"] -->|POST /events| Ingest["ingest :3400 (Events/Endpoints/Admin)"]
+  Ingest -->|같은 트랜잭션으로 커밋| OutboxTbl[("Postgres: dispatch_outbox_records")]
+  OutPub["OutboxPublisherService"] -->|fetchPending| OutboxTbl
+  OutPub -->|publish| Topic[("Redpanda: webhook.deliveries.v1")]
+  Topic -->|consume| Worker["delivery-worker ×N (DispatchConsumer)"]
+  Retry["RetryPollerService (@Interval)"] --> Worker
+  Worker -->|"get/hincrby (회로 상태)"| Circuit[("Redis: circuit:{endpointId}")]
+  Worker -->|"HTTP POST + HMAC 서명"| Receiver["구독자(웹훅 수신 서버)"]
+  NodeForge["node-forge (DistributedCircuitBreaker/auth/http)"] -.-> Worker`,
+      },
+      {
+        key: 'live-auction',
+        label: 'live-auction',
+        diagram: `graph TD
+  Bidder["입찰자 (panel.html)"] -->|REST + WebSocket| A1["app-1"]
+  Bidder -->|REST + WebSocket| A2["app-2"]
+  Spectator["관전자 (spectator.html)"] -->|WebSocket| A3["app-3"]
+  A1 -->|withLock| PG[("Postgres: auctions/bids")]
+  A2 --> PG
+  A3 --> PG
+  A1 -->|"미러 set/get + lock"| Redis[("Redis: current/lock/pub-sub")]
+  A2 --> Redis
+  A3 --> Redis
+  A1 -.->|"publish(auction:events)"| Redis
+  Redis -.->|subscribe| A2
+  Redis -.->|subscribe| A3
+  NodeForge["node-forge (withLock/publish/subscribe)"] -.-> A1`,
+      },
+      {
+        key: 'payment-gateway',
+        label: 'payment-gateway',
+        diagram: `graph TD
+  Merchant["가맹점 콘솔 (panel.html)"] -->|REST| App["app :3600 (결제 API + reconciler)"]
+  Widget["체크아웃 위젯 데모"] -->|REST| App
+  App -->|"ForgeHttpClient 재시도 + DistributedCircuitBreaker"| FakePg["fake-pg :3601 (테스트 더블)"]
+  FakePg -.->|웹훅 콜백| App
+  App --> PG[("Postgres: payment_transactions/attempts")]
+  App --> Redis[("Redis: circuit:fake-pg")]
+  NodeForge["node-forge (http/redis/versioning)"] -.-> App`,
       },
     ],
   },
