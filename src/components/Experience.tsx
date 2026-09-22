@@ -1,5 +1,5 @@
 import Section from './Section'
-import { experiences } from '../data/resume'
+import { experiences } from '../data/profile'
 import { formatPeriod } from '../utils/date'
 
 export default function Experience() {

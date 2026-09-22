@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Issue, Project } from '../data/resume'
+import type { Issue, Project } from '../data/types'
 import MermaidDiagram from './MermaidDiagram'
 import ArchitectureModal from './ArchitectureModal'
 import Markdown from './Markdown'

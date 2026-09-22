@@ -1,5 +1,5 @@
 import Section from './Section'
-import { skills } from '../data/resume'
+import { skills } from '../data/profile'
 
 export default function Skills() {
   return (

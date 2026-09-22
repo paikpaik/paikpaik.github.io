@@ -1,78 +1,55 @@
 import { useMemo, useState } from 'react'
-import type { Project, Issue, ProjectArchitecture } from '../data/resume'
+import type { Project, Issue, ProjectArchitecture } from '../data/types'
 import { formatPeriod } from '../utils/date'
 import MermaidDiagram from './MermaidDiagram'
 import ArchitectureModal from './ArchitectureModal'
-import Markdown from './Markdown'
+import IssueModal from './IssueModal'
 
 interface ProjectDetailProps {
   project: Project
   onClose: () => void
 }
 
-function IssueItem({ issue, open, onToggle }: { issue: Issue; open: boolean; onToggle: () => void }) {
-  const hasDetail = !!(issue.problem || issue.solution)
+type Tab = 'overview' | 'architecture' | 'issues'
 
+// 이슈 카드에 보여줄 한 줄 요약 — impact가 있으면 그걸, 없으면 problem 첫 문장을 잘라 쓴다
+function issueSummary(issue: Issue): string | null {
+  if (issue.impact) return issue.impact
+  if (issue.problem) {
+    const firstSentence = issue.problem.split(/(?<=\.)\s/)[0]
+    return firstSentence.length > 70 ? `${firstSentence.slice(0, 70)}…` : firstSentence
+  }
+  return null
+}
+
+function IssueCard({ issue, onOpen }: { issue: Issue; onOpen: () => void }) {
+  const summary = issueSummary(issue)
   return (
-    <li>
-      <button
-        className={`flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left transition-colors ${hasDetail ? 'cursor-pointer hover:bg-neutral-50' : 'cursor-default'}`}
-        onClick={() => hasDetail && onToggle()}
-        disabled={!hasDetail}
-      >
+    <button
+      onClick={onOpen}
+      className="flex flex-col items-start gap-2 rounded-lg border border-neutral-100 bg-white p-4 text-left transition-colors hover:border-blue-200 hover:bg-blue-50/30"
+    >
+      <div className="flex w-full items-start gap-2">
         {issue.status === 'closed' ? (
-          <svg className="mt-1 h-4 w-4 shrink-0 text-neutral-400" viewBox="0 0 16 16" fill="currentColor">
+          <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-400" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0Zm3.78 4.78a.75.75 0 0 0-1.06-1.06L6.75 6.69 5.28 5.22a.75.75 0 0 0-1.06 1.06l2 2a.75.75 0 0 0 1.06 0l4.5-4.5Z" />
           </svg>
         ) : (
-          <svg className="mt-1 h-4 w-4 shrink-0 text-blue-400" viewBox="0 0 16 16" fill="currentColor">
+          <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
             <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z" />
           </svg>
         )}
-        <span className={`flex-1 text-base font-bold leading-snug ${issue.status === 'closed' ? 'text-neutral-500' : 'text-neutral-900'}`}>
-          {issue.title}
-        </span>
-        {hasDetail && (
-          <svg
-            className={`mt-1.5 h-3.5 w-3.5 shrink-0 text-neutral-300 transition-transform ${open ? 'rotate-180' : ''}`}
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        )}
-      </button>
-
-      {hasDetail && open && (
-        <div className="space-y-5 px-2 pb-6 pt-1">
-          {issue.problem && (
-            <section>
-              <h4 className="mb-2 border-l-4 border-red-300 pl-3 text-sm font-bold text-neutral-700">문제</h4>
-              <Markdown className="pl-3">{issue.problem}</Markdown>
-            </section>
-          )}
-          {issue.solution && (
-            <section>
-              <h4 className="mb-2 border-l-4 border-blue-300 pl-3 text-sm font-bold text-neutral-700">해결</h4>
-              <Markdown className="pl-3">{issue.solution}</Markdown>
-            </section>
-          )}
-          {issue.impact && (
-            <section>
-              <h4 className="mb-2 border-l-4 border-emerald-300 pl-3 text-sm font-bold text-neutral-700">결과</h4>
-              <Markdown className="pl-3">{issue.impact}</Markdown>
-            </section>
-          )}
-          {issue.relatedNodes && issue.relatedNodes.length > 0 && (
-            <p className="pl-3 text-[11px] text-blue-400">↑ 위 아키텍처에서 관련 컴포넌트가 강조 표시됩니다.</p>
-          )}
-        </div>
-      )}
-    </li>
+        <span className="flex-1 text-sm font-bold leading-snug text-neutral-900">{issue.title}</span>
+      </div>
+      {summary && <p className="pl-5.5 text-xs leading-relaxed text-neutral-500">{summary}</p>}
+    </button>
   )
 }
 
 export default function ProjectDetail({ project, onClose }: ProjectDetailProps) {
+  const [tab, setTab] = useState<Tab>('overview')
+
   const diagrams = useMemo<ProjectArchitecture[]>(() => {
     if (project.architectures && project.architectures.length > 0) return project.architectures
     if (project.architecture) return [{ key: '_default', label: '아키텍처', diagram: project.architecture }]
@@ -80,37 +57,18 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
   }, [project.architectures, project.architecture])
 
   const [activeArchKey, setActiveArchKey] = useState<string | undefined>(diagrams[0]?.key)
-  const [openTitles, setOpenTitles] = useState<Set<string>>(() => {
-    const first = project.issues?.[0]
-    return new Set(first ? [first.title] : [])
-  })
   const [componentFilter, setComponentFilter] = useState<string>('all')
   const [expanded, setExpanded] = useState(false)
+  const [openIssue, setOpenIssue] = useState<Issue | null>(null)
+  const [highlightIssue, setHighlightIssue] = useState<Issue | null>(null)
 
   const activeDiagram = diagrams.find((d) => d.key === activeArchKey) ?? diagrams[0]
 
-  const toggleIssue = (issue: Issue) => {
-    const willOpen = !openTitles.has(issue.title)
-    setOpenTitles((prev) => {
-      const next = new Set(prev)
-      if (next.has(issue.title)) next.delete(issue.title)
-      else next.add(issue.title)
-      return next
-    })
-    // 다이어그램이 여러 개면, 펼치는(닫는 게 아니라) 이슈가 속한 컴포넌트로 탭을 자동 전환
-    if (willOpen && diagrams.length > 1 && issue.component && diagrams.some((d) => d.key === issue.component)) {
-      setActiveArchKey(issue.component)
-    }
-  }
-
-  const highlightNodeIds = useMemo(
-    () =>
-      (project.issues ?? [])
-        .filter((issue) => openTitles.has(issue.title))
-        .filter((issue) => diagrams.length <= 1 || !issue.component || issue.component === activeArchKey)
-        .flatMap((issue) => issue.relatedNodes ?? []),
-    [project.issues, openTitles, diagrams.length, activeArchKey],
-  )
+  const highlightNodeIds = useMemo(() => {
+    if (!highlightIssue) return []
+    if (diagrams.length > 1 && highlightIssue.component && highlightIssue.component !== activeArchKey) return []
+    return highlightIssue.relatedNodes ?? []
+  }, [highlightIssue, diagrams.length, activeArchKey])
 
   const components = useMemo(() => {
     const set = new Set<string>()
@@ -125,12 +83,30 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
     return (project.issues ?? []).filter((issue) => issue.component === componentFilter)
   }, [project.issues, componentFilter])
 
+  const viewIssueArchitecture = (issue: Issue) => {
+    if (diagrams.length > 1 && issue.component && diagrams.some((d) => d.key === issue.component)) {
+      setActiveArchKey(issue.component)
+    }
+    setHighlightIssue(issue)
+    setOpenIssue(null)
+    setTab('architecture')
+  }
+
+  const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: 'overview', label: '개요' },
+    ...(diagrams.length > 0 ? [{ key: 'architecture' as Tab, label: '아키텍처' }] : []),
+    ...(project.issues && project.issues.length > 0
+      ? [{ key: 'issues' as Tab, label: '이슈', count: project.issues.length }]
+      : []),
+  ]
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-start justify-between border-b border-neutral-100 px-8 py-8">
+      <div className="flex items-start justify-between border-b border-neutral-100 px-8 pb-6 pt-8">
         <div>
           <h2 className="text-xl font-bold text-neutral-900">{project.name}</h2>
           <p className="mt-1 text-sm text-neutral-500">{formatPeriod(project.start, project.end)}</p>
+          <p className="mt-3 max-w-2xl text-base text-neutral-600">{project.summary}</p>
         </div>
         <button
           onClick={onClose}
@@ -145,14 +121,68 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 py-8">
-        <p className="text-base text-neutral-600">{project.summary}</p>
+      <div className="flex gap-1 border-b border-neutral-100 px-8">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`relative px-3 py-3 text-sm font-semibold transition-colors ${
+              tab === t.key ? 'text-blue-600' : 'text-neutral-400 hover:text-neutral-600'
+            }`}
+          >
+            {t.label}
+            {typeof t.count === 'number' && <span className="ml-1 text-xs font-normal text-neutral-400">{t.count}</span>}
+            {tab === t.key && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-blue-500" />}
+          </button>
+        ))}
+      </div>
 
-        {diagrams.length > 0 && (
-          <div className="mt-8">
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">아키텍처</h3>
+      <div className="flex-1 overflow-y-auto px-8 py-8">
+        {tab === 'overview' && (
+          <div className="space-y-8">
+            <div>
+              <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">주요 작업</h3>
+              <ul className="max-w-2xl space-y-4">
+                {project.description.map((item, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-neutral-700">
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-blue-400" />
+                    <span className="leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {project.metrics && project.metrics.length > 0 && (
+              <div>
+                <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">주요 지표</h3>
+                <div className="flex flex-wrap gap-2">
+                  {project.metrics.map((m, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2">
+                      <span className="text-xs text-neutral-400">{m.label}</span>
+                      <span className="text-sm font-semibold text-blue-600">{m.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">기술 스택</h3>
+              <div className="flex flex-wrap gap-2">
+                {project.stack.map((tag) => (
+                  <span key={tag} className="rounded-md bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'architecture' && diagrams.length > 0 && (
+          <div>
             {diagrams.length > 1 && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-4 flex flex-wrap gap-2">
                 {diagrams.map((d) => (
                   <button
                     key={d.key}
@@ -169,7 +199,7 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
               </div>
             )}
             {activeDiagram && (
-              <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2">
+              <div className="overflow-x-auto rounded-lg border border-neutral-100 bg-neutral-50 px-4 py-2">
                 <MermaidDiagram
                   chart={activeDiagram.diagram}
                   highlightNodeIds={highlightNodeIds}
@@ -177,24 +207,16 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
                 />
               </div>
             )}
+            {highlightIssue && (
+              <p className="mt-3 text-xs text-blue-500">
+                “{highlightIssue.title}” 이슈와 관련된 컴포넌트가 강조 표시되어 있습니다.
+              </p>
+            )}
           </div>
         )}
 
-        <div className="mt-8">
-          <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">주요 작업</h3>
-          <ul className="space-y-3">
-            {project.description.map((item, i) => (
-              <li key={i} className="flex items-start gap-3 text-sm text-neutral-700">
-                <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-blue-400" />
-                <span className="leading-relaxed">{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {project.issues && project.issues.length > 0 && (
-          <div className="mt-8">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-blue-500">이슈</h3>
+        {tab === 'issues' && project.issues && project.issues.length > 0 && (
+          <div>
             {components.length > 1 && (
               <div className="mb-4 flex flex-wrap gap-2">
                 <button
@@ -225,43 +247,13 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
                 })}
               </div>
             )}
-            <ul className="space-y-0.5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {filteredIssues.map((issue) => (
-                <IssueItem
-                  key={`${project.id}-${issue.title}`}
-                  issue={issue}
-                  open={openTitles.has(issue.title)}
-                  onToggle={() => toggleIssue(issue)}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {project.metrics && project.metrics.length > 0 && (
-          <div className="mt-8">
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">주요 지표</h3>
-            <div className="flex flex-wrap gap-2">
-              {project.metrics.map((m, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2">
-                  <span className="text-xs text-neutral-400">{m.label}</span>
-                  <span className="text-sm font-semibold text-blue-600">{m.value}</span>
-                </div>
+                <IssueCard key={`${project.id}-${issue.title}`} issue={issue} onOpen={() => setOpenIssue(issue)} />
               ))}
             </div>
           </div>
         )}
-
-        <div className="mt-8">
-          <h3 className="mb-4 text-xs font-semibold uppercase tracking-widest text-blue-500">기술 스택</h3>
-          <div className="flex flex-wrap gap-2">
-            {project.stack.map((tag) => (
-              <span key={tag} className="rounded-md bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600">
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
       </div>
 
       {expanded && activeDiagram && (
@@ -269,6 +261,14 @@ export default function ProjectDetail({ project, onClose }: ProjectDetailProps) 
           chart={activeDiagram.diagram}
           highlightNodeIds={highlightNodeIds}
           onClose={() => setExpanded(false)}
+        />
+      )}
+
+      {openIssue && (
+        <IssueModal
+          issue={openIssue}
+          onClose={() => setOpenIssue(null)}
+          onViewArchitecture={diagrams.length > 0 ? () => viewIssueArchitecture(openIssue) : undefined}
         />
       )}
     </div>

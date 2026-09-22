@@ -1,4 +1,4 @@
-import { profile } from '../data/resume'
+import { profile } from '../data/profile'
 
 export default function Header() {
   return (

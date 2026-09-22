@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Header from './components/Header'
+import Philosophy from './components/Philosophy'
 import Skills from './components/Skills'
 import Experience from './components/Experience'
 import Projects from './components/Projects'
@@ -7,7 +8,7 @@ import Troubleshooting from './components/Troubleshooting'
 import Education from './components/Education'
 import ProjectDetail from './components/ProjectDetail'
 import IssueDetail from './components/IssueDetail'
-import type { Issue, Project } from './data/resume'
+import type { Issue, Project } from './data/types'
 
 type View = 'projects' | 'troubleshooting'
 type SelectedIssue = { project: Project; issue: Issue }
@@ -66,6 +67,7 @@ export default function App() {
         <Header />
         <main className="mx-auto w-full max-w-5xl flex-1 px-6">
           <div className="divide-y divide-neutral-100">
+            <Philosophy />
             <Experience />
 
             <section className="py-10">

@@ -1,4 +1,4 @@
-import type { ProjectLabel } from '../data/resume'
+import type { ProjectLabel } from '../data/types'
 
 export const labelStyle: Record<ProjectLabel, { base: string; selected: string }> = {
   Dev:        { base: 'bg-blue-50 text-blue-500',       selected: 'bg-blue-500 text-white' },
