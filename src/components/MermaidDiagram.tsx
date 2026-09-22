@@ -56,6 +56,15 @@ export default function MermaidDiagram({ chart, highlightNodeIds, onExpand }: Me
       .then(({ svg }) => {
         if (!ref.current) return
         ref.current.innerHTML = svg
+        // mermaid는 기본적으로 width="100%"로 렌더링해 컨테이너 폭에 맞춰 다이어그램 전체를
+        // 축소시킨다 — 노드가 많을수록 글씨가 비례해서 작아지는 원인. viewBox의 실제 크기로
+        // 고정해서 항상 같은 글씨 크기를 유지하고, 넘치는 영역은 부모가 스크롤로 보여주게 한다.
+        const svgEl = ref.current.querySelector('svg')
+        const viewBoxWidth = svgEl?.viewBox.baseVal.width
+        if (svgEl && viewBoxWidth) {
+          svgEl.setAttribute('width', `${viewBoxWidth}`)
+          svgEl.style.maxWidth = 'none'
+        }
         if (highlightNodeIds && highlightNodeIds.length > 0) {
           applyHighlight(ref.current, highlightNodeIds)
         }
@@ -68,7 +77,7 @@ export default function MermaidDiagram({ chart, highlightNodeIds, onExpand }: Me
       className={onExpand ? 'group relative cursor-zoom-in' : undefined}
       onClick={onExpand}
     >
-      <div ref={ref} className="overflow-x-auto py-2" />
+      <div ref={ref} className="overflow-auto py-2" />
       {onExpand && (
         <span className="pointer-events-none absolute right-2 top-2 rounded bg-white/90 px-2 py-1 text-[10px] font-medium text-neutral-400 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
           확대

@@ -1,4 +1,5 @@
-import { projects, projectOrder, type Project } from '../data/resume'
+import { projects, projectOrder } from '../data/projects'
+import type { Project } from '../data/types'
 import { labelStyle } from '../utils/labelStyle'
 
 interface ProjectsProps {

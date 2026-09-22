@@ -1,5 +1,5 @@
 import Section from './Section'
-import { education } from '../data/resume'
+import { education } from '../data/profile'
 import { formatPeriod } from '../utils/date'
 
 export default function Education() {

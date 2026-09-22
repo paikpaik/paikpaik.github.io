@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { projects, type Issue, type Project, type ProjectLabel } from '../data/resume'
+import { projects } from '../data/projects'
+import type { Issue, Project, ProjectLabel } from '../data/types'
 import { labelStyle } from '../utils/labelStyle'
 
 interface TroubleshootingProps {
