@@ -6,6 +6,7 @@ export const aiCodingPlatform: Project = {
     name: 'AI 기반 코딩 자동화 플랫폼 오픈소스',
     summary: 'Claude가 프로젝트별로 직접 코드를 작성·수정하고 에이전트의 현재 작업 상태를 모니터링할 수 있는 IDE 대시보드 플랫폼',
     start: '2026.02',
+    personal: true,
     description: [
       'Anthropic 프롬프트 캐싱을 적용해 안정적 컨텍스트(코드베이스·컨벤션)와 동적 태스크를 분리 — 반복 실행 시 토큰 비용 약 90% 절감',
       '파일별 관련성 정도를 점수로 구분 + 너무 큰 파일은 요약 및 제외로 관련 파일만 선별해 컨텍스트에 포함 — 200K 문자 상한 내에서 품질 유지',

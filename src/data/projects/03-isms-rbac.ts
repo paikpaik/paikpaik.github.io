@@ -3,7 +3,7 @@ import type { Project } from '../types'
 export const ismsRbac: Project = {
     id: 3,
     label: 'Dev',
-    name: '자사 어드민 ISMS 권한관리 및 로그추적 시스템 구축',
+    name: '통합 어드민 및 ISMS 권한관리·감사 로그 시스템 구축',
     summary: 'RBAC(Role-Based Access Control) 기반 권한 관리와 전체 API 액션 Audit Trail 풀스택 1인 개발',
     start: '2024.01',
     description: [
@@ -14,6 +14,15 @@ export const ismsRbac: Project = {
       '기간·HTTP 메서드·경로 기준 로그 검색 및 Monaco Editor 기반 datadog과 유사한 상세 JSON 뷰어 제공',
     ],
     stack: ['Next.js', 'JavaScript', 'AWS Aurora', 'AWS EB', 'AWS Secrets Manager', 'JWT RS256'],
+    role: '풀스택 단독',
+    headline: '대형 매체의 ISMS 요건 판단 기준으로 활용, 관리자 API 호출 100% 감사 기록',
+    achievements: [
+      {
+        x: '대형 매체 제휴에 필요한 ISMS 수준의 권한관리·감사 추적 체계 구축',
+        y: '대형 매체의 ISMS 요건 충족 여부 판단 기준으로 활용, 전체 관리자 API 호출(조회 포함) 100% 기록',
+        z: 'Account → Group → Role → Permission 4계층 RBAC를 설계해 권한 검사를 서버 레이어에서 일괄 적용하고, JWT 서명 키를 AWS Secrets Manager로 이관',
+      },
+    ],
     metrics: [
       { label: 'Audit Trail 적용 범위', value: '전체 관리자의 모든 API' },
       { label: '개발 인원', value: '1인 풀스택' },

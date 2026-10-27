@@ -1,6 +1,5 @@
 import Section from './Section'
 import { education } from '../data/profile'
-import { formatPeriod } from '../utils/date'
 
 export default function Education() {
   return (
@@ -15,7 +14,7 @@ export default function Education() {
               </p>
             </div>
             <p className="whitespace-nowrap text-sm text-neutral-400">
-              {formatPeriod(edu.start, edu.end)}
+              {edu.start} – {edu.end}
             </p>
           </div>
         ))}

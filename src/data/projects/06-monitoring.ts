@@ -7,7 +7,7 @@ export const monitoring: Project = {
     summary: 'OTel 기반 분산 추적·메트릭 수집 파이프라인을 직접 설계·운영해 DataDog 의존 탈피',
     start: '2025.10',
     description: [
-      '고빈도 API 경로는 trace 저장을 최소화하면서도 메트릭은 전량 집계하는 이중 전략 적용 — trace 저장 비용 10배 절감, 메트릭 정확도 유지',
+      '고빈도 API 경로의 trace 샘플링과 메트릭 집계를 분리 — 고빈도 경로 trace 저장량 약 90% 감소, 메트릭은 샘플링과 별개로 전체 요청 기준 집계',
       'OpenTelemetry가 공식 지원하지 않는 Fastify 5와 Redis 클러스터 환경을 직접 패치해 trace 수집 범위 확보',
       'DB 호출 추적 시 범용 명칭 대신 실제 호출된 프로시저명으로 자동 변환 — Grafana에서 DB 병목을 즉시 식별 가능',
       '커스텀 지표는 전용 수집 서버(FastAPI + Nginx, ECS 배포)로 직접 처리 — 멀티워커 환경에서 지표가 중복 집계되지 않도록 설계',
@@ -15,19 +15,38 @@ export const monitoring: Project = {
       'Grafana에 Prometheus·Tempo 이중 데이터소스를 연결해 요청률·응답시간(P99) 메트릭과 원본 트레이스를 단일 대시보드에서 연계 조회',
     ],
     stack: ['OpenTelemetry', 'Prometheus', 'Grafana Tempo', 'Grafana', 'FastAPI', 'AWS ECS', 'Node.js', 'Python'],
+    role: '설계·구축·운영 단독',
+    headline: '모니터링 비용 월 600만 → 30만 원(95% 절감), 병목 쿼리 1분 → 1~2초',
+    achievements: [
+      {
+        x: '적립 서버의 trace·메트릭 모니터링을 DataDog에서 오픈소스 자체 운영으로 전환',
+        y: '모니터링 비용 월 약 600만 원 → 약 30만 원 (95% 절감)',
+        z: 'OpenTelemetry Collector·Prometheus·Tempo·Grafana 파이프라인을 설계해 trace·메트릭을 이관하고, DataDog에는 적립 API 등 핵심 경로 로그만 0.1% 샘플링으로 남김',
+      },
+      {
+        x: '인덱스를 타지 못하던 정산·배치 동기화·어드민 쿼리 병목 해결',
+        y: '1분 이상 걸리던 쿼리를 1~2초로 단축 (30배 이상)',
+        z: '모든 span이 CALL로 뭉치던 MySQL 계측을 실제 프로시저명으로 치환해 느린 쿼리를 특정하고, 불필요한 조인 제거와 인덱스를 타도록 쿼리를 재작성',
+      },
+      {
+        x: '샘플링을 줄여도 지표는 정확하게 유지',
+        y: '고빈도 경로 trace 저장량 약 90% 감소, RPS·P99는 전체 요청 기준 집계',
+        z: 'trace 샘플링과 메트릭 집계 경로를 분리하는 경로별 샘플링 로직을 직접 구현',
+      },
+    ],
     metrics: [
-      { label: 'Trace 저장 비용', value: '10배 절감' },
-      { label: '메트릭 정확도', value: '100% 유지' },
-      { label: 'DataDog 비용 대체', value: '자체 서버 비용만 계산(오픈소스)' },
+      { label: '고빈도 경로 trace 저장량', value: '약 90% 감소' },
+      { label: '메트릭 집계 기준', value: '전체 요청 (샘플링 무관)' },
+      { label: 'DataDog 대체', value: '오픈소스 자체 운영' },
     ],
     issues: [
       {
-        title: '고빈도 경로 샘플링 최적화 — trace 비용 절감과 메트릭 정확도 동시 확보',
+        title: '고빈도 경로 샘플링 최적화 — trace 저장량 절감과 전체 요청 메트릭 집계 분리',
         status: 'closed',
         problem: '고빈도 엔드포인트는 trace를 전량 저장하면 비용이 크게 늘어나기 때문에 샘플링 비율을 낮춰야 했다. 그런데 trace 샘플링 비율을 낮추면 거기서 파생되는 메트릭 집계도 같이 줄어들어서, 실제 트래픽의 일부만 반영된 RPS·P99 수치가 나올 거라는 걸 미리 예상할 수 있었다.',
-        solution: '경로별 샘플링 로직을 직접 구현해서 trace 저장은 줄이되 메트릭 집계는 전체 요청 기준으로 유지되도록 분리했다. trace 저장 비용을 약 10배 줄이면서도 메트릭 정확도는 100%로 유지할 수 있었다.',
+        solution: '경로별 샘플링 로직을 직접 구현해서 trace 저장은 줄이되 메트릭 집계는 전체 요청 기준으로 유지되도록 분리했다. 고빈도 경로의 trace 저장량은 약 90% 줄었고, RPS·P99 같은 메트릭은 샘플링 비율과 상관없이 전체 요청을 기준으로 집계된다.',
         relatedNodes: ['API', 'Collector', 'Prom'],
-        impact: 'trace 저장 비용 10배 절감, 메트릭 정확도 100% 유지',
+        impact: '고빈도 경로 trace 저장량 약 90% 감소, 메트릭은 전체 요청 기준 집계',
       },
       {
         title: 'OpenTelemetry Fastify 5 미지원 — 요청 경로 정보 직접 주입으로 해결',

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { projects } from '../data/projects'
+import { visibleProjects } from '../data/projects'
 import type { Issue, Project, ProjectLabel } from '../data/types'
 import { labelStyle } from '../utils/labelStyle'
 
@@ -10,7 +10,7 @@ interface TroubleshootingProps {
 
 const allLabels: ProjectLabel[] = ['Dev', 'Monitoring', 'SDK', 'WebApp', 'LLM']
 
-const items = projects.flatMap((project) =>
+const items = visibleProjects.flatMap((project) =>
   (project.issues ?? []).map((issue, idx) => ({ project, issue, key: `${project.id}-${idx}` })),
 )
 

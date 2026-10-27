@@ -67,8 +67,7 @@ export default function App() {
         <Header />
         <main className="mx-auto w-full max-w-5xl flex-1 px-6">
           <div className="divide-y divide-neutral-100">
-            <Philosophy />
-            <Experience />
+            <Experience onSelect={handleSelectProject} />
 
             <section className="py-10">
               <div className="mb-6 flex items-center gap-2">
@@ -99,6 +98,7 @@ export default function App() {
             </section>
 
             <Skills />
+            <Philosophy />
             <Education />
           </div>
         </main>

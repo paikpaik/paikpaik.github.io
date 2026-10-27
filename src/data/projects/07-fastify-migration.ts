@@ -12,13 +12,27 @@ export const fastifyMigration: Project = {
       '빈 JSON 바디를 파싱 오류 없이 빈 객체로 처리하는 커스텀 Content-Type 파서, 멀티파트 폼 필드 평탄화 처리 구현으로 Restify/Fastify 동작 차이 흡수',
       '권한 바이패스 경로 매칭을 정규식 기반으로 직접 구현 — Fastify 기본 패턴 매칭이 Restify와 달라 발생한 인가 오동작 해결',
       '프로덕션 로그를 확률 기반 샘플링으로 전송하되 5xx 에러는 100% 기록해 DataDog 비용 절감과 이상 감지 균형 확보',
-      'v2.x(Restify)·v3.x(Fastify) 병행 배포로 점진적 마이그레이션 지원, v3.0.0 이후 18개월 이상 하위 호환 API 무변경 유지',
+      'v2.x(Restify)·v3.x(Fastify) 병행 배포로 점진적 마이그레이션 지원, v3.0.0 배포(2026.01) 이후 약 9개월째 하위 호환 API 무변경 유지',
       'Accept-Version 헤더 기반 버전 라우팅 직접 구현 — Restify 내장 기능과 달리 Fastify는 미지원이라 버전 제약 라우트 등록 및 최신 버전 자동 폴백 로직을 직접 개발',
     ],
     stack: ['Fastify', 'Node.js', 'TypeScript', 'npm (내부 패키지)', 'DataDog APM'],
+    role: '설계·구현 단독',
+    headline: '14개 서버 코드 변경 0건으로 무중단 전환, 인스턴스 20~30% 축소',
+    achievements: [
+      {
+        x: '14개 이상 API 서버가 공유하는 사내 서버 모듈을 Restify에서 Fastify 5로 무중단 전환',
+        y: '하위 서버 코드 변경 0건, 약 9개월째 하위 호환 API 무변경',
+        z: 'Fastify req/res에 Restify 인터페이스를 런타임 주입하는 호환 레이어를 만들고, v2(Restify)·v3(Fastify)를 npm dist-tag로 병행 배포해 서버별 전환 시점을 분리',
+      },
+      {
+        x: '같은 트래픽을 더 적은 서버로 처리하도록 운영 비용 절감',
+        y: '전환 후 인스턴스 수 20~30% 축소',
+        z: '요청 처리 오버헤드가 낮은 Fastify 5로 전환한 뒤 안정화된 처리량을 기준으로 인스턴스 규모를 재산정',
+      },
+    ],
     metrics: [
       { label: '코드 변경 없이 전환한 서버', value: '14개 이상' },
-      { label: '하위 호환 API 유지', value: '6개월 이상' },
+      { label: '하위 호환 API 유지', value: '약 9개월 (유지 중)' },
       { label: '마이그레이션 방식', value: '무중단 점진적 전환' },
     ],
     issues: [
@@ -41,7 +55,7 @@ export const fastifyMigration: Project = {
         title: '멀티파트 필드 구조 차이 — Fastify·Restify 응답 형태 불일치',
         status: 'closed',
         problem: '`@fastify/multipart`를 `attachFieldsToBody: true`로 등록하면 폼 필드가 `req.body`에 자동으로 붙긴 하는데, `{ username: { value: \'john\', fieldname: ..., mimetype: ..., type: \'field\' } }`처럼 메타데이터를 포함한 중첩 객체 형태였다. Restify는 `req.body.username`이 그냥 `\'john\'` 문자열이었기 때문에, 하위 서버에서 폼 데이터에 접근하는 코드가 전부 깨졌다.',
-        solution: '`preHandler` 훅에서 `req.body`를 순회하면서 `.value` 속성이 있는 필드만 값을 뽑아 평탄화하고, 파일 필드(`.file` 스트림을 가진 객체)는 원래 구조 그대로 남겨뒀다. 이 훅을 `preHandler` 시점에 둔 이유는 `preValidation`(JSON Schema 검증)보다 뒤에 있어야 검증이 평탄화된 값 기준으로 동작하기 때문이다 — 다만 멀티파트 요청에 body 스키마 검증을 같이 쓰면 이 순서 특성상 평탄화 전 구조가 검증된다는 제약은 남아있다.',
+        solution: '`preHandler` 훅에서 `req.body`를 순회하면서 `.value` 속성이 있는 필드만 값을 뽑아 평탄화하고, 파일 필드(`.file` 스트림을 가진 객체)는 원래 구조 그대로 남겨뒀다. 하위 서버는 폼 값을 핸들러 안에서 읽기 때문에, 핸들러 직전인 `preHandler`에서 평탄화하면 기존 코드가 그대로 동작했다. 다만 Fastify의 스키마 검증은 `preHandler`보다 먼저 실행되므로, 멀티파트 body에 스키마 검증을 붙이면 평탄화 전 구조가 검증된다. 이 경우 평탄화를 `preValidation` 훅으로 옮겨야 한다는 점을 문서로 남겨뒀다.',
         relatedNodes: ['Module', 'Init'],
       },
       {
@@ -68,7 +82,7 @@ export const fastifyMigration: Project = {
         title: 'v2.x(Restify) + v3.x(Fastify) 병행 배포로 점진적 전환',
         status: 'closed',
         problem: '14개 이상 하위 서버를 한 번에 전환하는 건 불가능했다. 각 서버가 준비되는 시점이 다 달랐기 때문에, 기존 v2.x(Restify)를 계속 유지보수하면서 v3.x(Fastify)를 동시에 배포할 방법이 필요했다.',
-        solution: 'npm dist-tag로 두 버전을 병행 배포했다. 새 버전은 `latest` 태그로 배포하고 기존 v2.x는 별도 태그로 유지해서, 하위 서버가 준비됐을 때 개별적으로 버전을 올릴 수 있게 했다. v2.x 라인에도 필요하면 핫픽스를 계속 배포했고, 6개월 이상 하위 호환 API를 유지해 각 서버가 전환 시점을 자유롭게 조율하게 했다.',
+        solution: 'npm dist-tag로 두 버전을 병행 배포했다. 새 버전은 `latest` 태그로 배포하고 기존 v2.x는 별도 태그로 유지해서, 하위 서버가 준비됐을 때 개별적으로 버전을 올릴 수 있게 했다. v2.x 라인에도 필요하면 핫픽스를 계속 배포했고, v3.0.0 배포 이후 약 9개월째 하위 호환 API를 바꾸지 않고 유지해 각 서버가 전환 시점을 자유롭게 조율하게 했다.',
         relatedNodes: ['Module', 'V2'],
         impact: '14개 이상 서버 무중단 점진 전환',
       },
