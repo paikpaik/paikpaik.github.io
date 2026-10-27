@@ -1,4 +1,4 @@
-import { projects, projectOrder } from '../data/projects'
+import { visibleProjects } from '../data/projects'
 import type { Project } from '../data/types'
 import { labelStyle } from '../utils/labelStyle'
 
@@ -7,14 +7,31 @@ interface ProjectsProps {
   onSelect: (project: Project) => void
 }
 
-export default function Projects({ selected, onSelect }: ProjectsProps) {
-  const sorted = projectOrder
-    .map((id) => projects.find((p) => p.id === id))
-    .filter((p): p is Project => p !== undefined)
+const groups = [
+  { title: '실무 프로젝트', items: visibleProjects.filter((p) => !p.personal) },
+  { title: '개인 프로젝트', items: visibleProjects.filter((p) => p.personal) },
+]
 
+export default function Projects({ selected, onSelect }: ProjectsProps) {
+  return (
+    <div className="space-y-8">
+      {groups.map(
+        (group) =>
+          group.items.length > 0 && (
+            <div key={group.title}>
+              <p className="mb-3 text-xs font-medium text-neutral-400">{group.title}</p>
+              <ProjectGrid projects={group.items} selected={selected} onSelect={onSelect} />
+            </div>
+          ),
+      )}
+    </div>
+  )
+}
+
+function ProjectGrid({ projects, selected, onSelect }: ProjectsProps & { projects: Project[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {sorted.map((project) => {
+      {projects.map((project) => {
         const isSelected = selected?.name === project.name
         const ls = labelStyle[project.label]
         return (

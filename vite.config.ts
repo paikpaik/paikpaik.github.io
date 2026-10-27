@@ -7,4 +7,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    rollupOptions: {
+      // 메인 포트폴리오(/)와 인쇄용 이력서(/resume/)를 각각 별도 페이지로 빌드
+      input: {
+        main: 'index.html',
+        resume: 'resume/index.html',
+      },
+    },
+  },
 })

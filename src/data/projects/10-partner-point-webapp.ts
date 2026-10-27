@@ -14,6 +14,15 @@ export const partnerPointWebapp: Project = {
       'DataDog APM 도입 및 경로별 샘플링률 조정으로 분산 트레이싱 비용 최적화',
     ],
     stack: ['Next.js', 'TypeScript', 'Fastify', 'Aurora/MySQL', 'Redis', 'DataDog APM', 'AWS EB'],
+    role: '서버 2인 공동, 프론트엔드·어드민 단독',
+    headline: 'DAU 약 2만, 하루 적립 약 8,000건 플랫폼 구축·운영',
+    achievements: [
+      {
+        x: '파트너사 앱에 들어가는 WebView 포인트 적립 플랫폼을 구축하고 안정적으로 운영',
+        y: 'DAU 약 2만, 하루 적립 약 8,000건',
+        z: '출석체크·룰렛·뉴스·콘텐츠 적립을 WebView로 구현하고, 네이티브 SDK 브릿지로 Android·iOS 앱 기능과 연동, 20개 이상 광고 파트너 네트워크 연결',
+      },
+    ],
     metrics: [
       { label: '광고 파트너 네트워크', value: '20개 이상' },
     ],

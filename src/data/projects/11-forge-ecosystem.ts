@@ -6,6 +6,7 @@ export const forgeEcosystem: Project = {
     name: 'forge 시리즈 — 백엔드 공유 모듈 오픈소스 생태계',
     summary: '재사용 가능한 백엔드 공유 모듈(node-forge, kafka-forge)을 만들고, 실제 아키텍처 실험(forgeLab)으로 검증하며 발견한 버그를 실제 버전업까지 반영한 오픈소스 생태계',
     start: '2026.07',
+    personal: true,
     description: [
       'node-forge: NestJS/Fastify 공용 모듈 12종(core·response·logger·redis·database·http·events·metrics·versioning·health·auth·grpc)을 GitHub Packages로 배포 — 프레임워크 무관 코어와 NestJS/Fastify 어댑터를 분리',
       'kafka-forge: 토픽 네이밍 컨벤션, Event Contract, Zod 스키마 검증, 재시도+DLQ, 멱등성(claim/release), Outbox 패턴, OTel 트레이싱, Prometheus 메트릭, 폴리글랏 JSON Schema 내보내기를 표준 제공하는 Kafka 코어 모듈',
@@ -14,6 +15,15 @@ export const forgeEcosystem: Project = {
       '실 소비 중 발견한 버그를 proposals/ 제안서로 정리 → 각 패키지 레포에서 직접 반영·배포하는 워크플로 확립, 총 22건의 실전 이슈를 버전별로 추적',
     ],
     stack: ['TypeScript', 'NestJS', 'Fastify', 'KafkaJS', 'Redis', 'Redpanda', 'TypeORM', 'PostgreSQL', 'gRPC', 'WebSocket', 'Zod', 'OpenTelemetry', 'Prometheus'],
+    role: '설계·구현 단독',
+    headline: '공용 모듈 12종 + Kafka 모듈, 실험 서비스 7개에서 발견한 이슈 22건 반영',
+    achievements: [
+      {
+        x: '실험할 때마다 반복 구현하던 백엔드 공통 기능을 재사용 패키지로 표준화',
+        y: '공용 모듈 12종 + Kafka 코어 모듈, 실험 서비스 7개에 적용, 발견한 이슈 22건을 버전업으로 반영',
+        z: '프레임워크 무관 코어와 NestJS·Fastify 어댑터를 분리하고, 대기열·Outbox·saga 분산 트랜잭션 등 실험 서비스에 실제 npm 설치로 적용하며 검증',
+      },
+    ],
     metrics: [
       { label: 'node-forge 버전', value: 'v1.0.10' },
       { label: 'kafka-forge 버전', value: 'v1.0.5' },

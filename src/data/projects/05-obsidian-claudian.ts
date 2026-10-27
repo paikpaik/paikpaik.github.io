@@ -3,9 +3,10 @@ import type { Project } from '../types'
 export const obsidianClaudian: Project = {
     id: 5,
     label: 'LLM',
-    name: '디자이너·기획자를 위한 Obsidian Claude 플러그인 오픈소스',
-    summary: 'Claude Agent SDK를 Obsidian에 임베딩한 AI 에이전트 플러그인 (claudian + planit) 오픈소스 개발',
+    name: '디자이너·기획자용 Obsidian AI 에이전트 플러그인 (오픈소스, 사내 도입)',
+    summary: 'Claude Agent SDK를 Obsidian에 임베딩해 디자이너·기획자가 데이터 조회와 회의 정리를 자연어로 처리하는 AI 에이전트 플러그인 (claudian + planit)',
     start: '2026.04',
+    personal: true,
     description: [
       'Anthropic Claude Agent SDK를 Obsidian 플러그인에 직접 통합 — 볼트 파일 읽기/쓰기·bash 실행·스트리밍 응답·서브에이전트·MCP 서버를 사이드바 AI 에이전트로 노출',
       '영속 쿼리 패턴으로 활성 대화의 콜드스타트 지연 제거, MessageChannel 추상화로 SDK 스트림 이벤트 중복 렌더링 방지, 세션 재개·포크 추적으로 연속 대화 복원',
@@ -15,6 +16,15 @@ export const obsidianClaudian: Project = {
       'ESLint 의존성 규칙으로 레이어 간 순환 참조 방지, Jest TDD 워크플로로 SDK 연동 복잡도 관리',
     ],
     stack: ['TypeScript', 'Anthropic Claude Agent SDK', 'Obsidian API', 'MCP', 'Jest'],
+    role: '설계·구현 단독',
+    headline: '일부 인원 시범 사용에서 사내 전체 업무 도구로 확산',
+    achievements: [
+      {
+        x: '개인적으로 만든 AI 플러그인을 디자이너·기획자의 사내 업무 도구로 확산',
+        y: '일부 인원 시범 사용 → 현재 사내 전체 사용 중',
+        z: 'Claude Agent SDK를 Obsidian 플러그인에 통합하고 DB MCP 서버를 연결해 자연어로 데이터를 조회하게 했으며, 직군별 슬래시 커맨드 15개·커스텀 에이전트 7개를 제공',
+      },
+    ],
     metrics: [
       { label: '디자인 커맨드', value: '15개' },
       { label: '커스텀 에이전트', value: '7개' },

@@ -15,6 +15,15 @@ export const partnerAdmin: Project = {
       'nginx 레이어에서 악성 URI 패턴·스캐닝 도구 차단 설정으로 보안 강화',
     ],
     stack: ['Next.js', 'TypeScript', 'MySQL', 'AWS S3', 'AWS SES', 'AWS EB'],
+    role: '풀스택 단독',
+    headline: '광고 등록·성과·정산 확인 전면 자동화, 2년 이상 운영',
+    achievements: [
+      {
+        x: '광고주·파트너가 직접 쓰는 셀프서비스 어드민으로 운영 수작업 제거',
+        y: '광고 등록·수정, 성과·정산 지표 확인 전면 자동화, 2년 이상 운영',
+        z: 'Next.js BFF 구조로 광고주용·파트너용 어드민을 분리 설계하고, Elastic Beanstalk + GitHub Actions + PM2 클러스터 배포 파이프라인 구축',
+      },
+    ],
     metrics: [
       { label: '개발 인원', value: '1인 풀스택' },
       { label: '운영 기간', value: '2년이상' },

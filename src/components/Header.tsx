@@ -36,6 +36,12 @@ export default function Header() {
             >
               github.com/paikpaik
             </a>
+            <a
+              href="/resume/"
+              className="mt-1 rounded-full border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-500 transition-colors hover:bg-blue-50"
+            >
+              이력서 PDF 보기
+            </a>
           </div>
         </div>
         <ul className="mt-6 max-w-2xl space-y-1.5">
